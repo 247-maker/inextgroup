@@ -8,7 +8,7 @@ const SETTINGS = Object.freeze({
   bloggerBase: 'https://www.googleapis.com/blogger/v3',
   maxDraftsPerRun: 3,
   minimumOverviewLength: 120,
-  source: 'trending/movie/week',
+  sources: ['trending/movie/week', 'trending/tv/week'],
   locale: 'en-US'
 });
 function props_() { return PropertiesService.getScriptProperties(); }
@@ -45,55 +45,77 @@ function bloggerInsertDraft_(body) {
 function esc_(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function approved_(movie) {
-  return movie && Number.isSafeInteger(movie.id) &&
-    movie.title && movie.overview && movie.overview.trim().length>=SETTINGS.minimumOverviewLength &&
-    /^\d{4}-\d{2}-\d{2}$/.test(movie.release_date||'') &&
-    /^\/[a-zA-Z0-9/_-]+\.(jpg|png|webp)$/.test(movie.poster_path||'');
+function typeOf_(source) { return source.indexOf('/tv/')>=0 ? 'tv' : 'movie'; }
+function approved_(m, type) {
+  const title=type==='tv'?m.name:m.title;
+  const date=type==='tv'?m.first_air_date:m.release_date;
+  return m && Number.isSafeInteger(m.id) &&
+    title && m.overview && m.overview.trim().length>=SETTINGS.minimumOverviewLength &&
+    /^\d{4}-\d{2}-\d{2}$/.test(date||'') &&
+    /^\/[a-zA-Z0-9/_-]+\.(jpg|png|webp)$/.test(m.poster_path||'');
 }
-function movieHtml_(m) {
-  const url='https://www.themoviedb.org/movie/'+encodeURIComponent(m.id);
+function genres_(type) {
+  const result=tmdb_('genre/'+type+'/list');
+  const map={};
+  for (const g of result.genres||[]) map[g.id]=g.name;
+  return map;
+}
+function mediaHtml_(m,type,genreNames) {
+  const title=type==='tv'?m.name:m.title;
+  const date=type==='tv'?m.first_air_date:m.release_date;
+  const url='https://www.themoviedb.org/'+type+'/'+encodeURIComponent(m.id);
   const poster='https://image.tmdb.org/t/p/w500'+m.poster_path;
-  const year=m.release_date.slice(0,4);
   const avg=Number(m.vote_average);
   const rating=Number.isFinite(avg)?avg.toFixed(1)+'/10':'Not rated';
-  // Data is credited to its source. No misleading reviews or download/watch buttons.
-  return '<article class="inext-movie"><figure><img alt="'+esc_(m.title)+' poster" loading="lazy" src="'+esc_(poster)+'"/></figure>'+
-    '<p><strong>Release:</strong> '+esc_(m.release_date)+' | <strong>TMDB user rating:</strong> '+esc_(rating)+'</p>'+
+  const genreList=(m.genre_ids||[]).map(id=>genreNames[id]).filter(Boolean);
+  return '<article class="inext-media"><figure><img alt="'+esc_(title)+' poster" loading="lazy" src="'+esc_(poster)+'"/></figure>'+
+    '<p><strong>'+(type==='tv'?'First aired':'Release')+':</strong> '+esc_(date)+
+    ' | <strong>TMDB community rating:</strong> '+esc_(rating)+'</p>'+
+    (genreList.length?'<p><strong>Genres:</strong> '+genreList.map(esc_).join(', ')+'</p>':'')+
     '<h2>Overview</h2><p>'+esc_(m.overview)+'</p>'+
-    '<p>Source: <a href="'+esc_(url)+'" rel="noopener noreferrer" target="_blank">TMDB movie details</a></p>'+
+    '<p>Source: <a href="'+esc_(url)+'" rel="noopener noreferrer" target="_blank">TMDB details</a></p>'+
     '<p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p></article>';
 }
 function gather_() {
-  const page=tmdb_(SETTINGS.source);
-  return (page.results||[]).filter(approved_).slice(0,SETTINGS.maxDraftsPerRun);
+  let all=[];
+  for (const source of SETTINGS.sources) {
+    const type=typeOf_(source);
+    const page=tmdb_(source);
+    all=all.concat((page.results||[]).filter(m=>approved_(m,type)).slice(0,SETTINGS.maxDraftsPerRun).map(m=>({type:type,data:m})));
+  }
+  return all.slice(0,SETTINGS.maxDraftsPerRun);
 }
 function previewImport() {
-  const list=gather_().map(m=>({id:m.id,title:m.title,releaseDate:m.release_date,eligible:!props_().getProperty('tmdb_movie_'+m.id)}));
+  const list=gather_().map(x=>{
+    const m=x.data;
+    return {type:x.type,id:m.id,title:x.type==='tv'?m.name:m.title,eligible:!props_().getProperty('tmdb_'+x.type+'_'+m.id)};
+  });
   Logger.log(JSON.stringify(list,null,2));
   return list;
 }
 function importDrafts() {
-  // Stop until explicit source licensing approval has been recorded by owner.
-  if (props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes') throw new Error('Rights check not complete. Read README and obtain required TMDB permissions.');
+  if (props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes') throw new Error('Rights check not complete. Review TMDB permissions and terms.');
   const lock=LockService.getScriptLock();
   if (!lock.tryLock(1000)) throw new Error('An import is already running.');
   try {
-    const movies=gather_(), outcomes=[];
-    for (const m of movies) {
-      const key='tmdb_movie_'+m.id;
-      if (props_().getProperty(key)) {outcomes.push({id:m.id,status:'skipped_existing'});continue;}
+    const items=gather_(), outcomes=[], cache={};
+    for (const x of items) {
+      const m=x.data, type=x.type, key='tmdb_'+type+'_'+m.id;
+      if (props_().getProperty(key)) {outcomes.push({type:type,id:m.id,status:'skipped_existing'});continue;}
+      if (!cache[type]) cache[type]=genres_(type);
+      const title=type==='tv'?m.name:m.title;
+      const date=type==='tv'?m.first_air_date:m.release_date;
+      const genreLabels=(m.genre_ids||[]).map(id=>cache[type][id]).filter(Boolean).slice(0,4);
       const draft=bloggerInsertDraft_({
         kind:'blogger#post',
-        title:m.title+' ('+m.release_date.slice(0,4)+') — Movie details',
-        content:movieHtml_(m),
-        labels:['Movies','TMDB']
+        title:title+' ('+date.slice(0,4)+') — '+(type==='tv'?'TV show':'Movie')+' details',
+        content:mediaHtml_(m,type,cache[type]),
+        labels:[type==='tv'?'TV Shows':'Movies','TMDB'].concat(genreLabels)
       });
-      // Only store a successful Blogger draft mapping.
       props_().setProperty(key,String(draft.id));
-      outcomes.push({id:m.id,bloggerDraftId:draft.id,status:'created_draft'});
+      outcomes.push({type:type,id:m.id,bloggerDraftId:draft.id,status:'created_draft'});
     }
     Logger.log(JSON.stringify(outcomes));
     return outcomes;
-  } finally { lock.releaseLock(); }
+  } finally {lock.releaseLock();}
 }
