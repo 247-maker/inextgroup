@@ -147,3 +147,38 @@ function previewMovieDetailHtml() {
   Logger.log('PREVIEW HTML START\n'+html+'\nPREVIEW HTML END');
   return {title:movie.title,html:html};
 }
+
+
+/**
+ * One-time write-permission test using fictional content only.
+ * Produces a Blogger DRAFT, never publishes, and never uses TMDB media.
+ * Requires separate explicit execution by the blog owner.
+ */
+function testBloggerDraftWrite() {
+  const p=props_();
+  const key='INEXTGROUP_TEST_DRAFT_ID';
+  const already=p.getProperty(key);
+  if (already) {
+    Logger.log('Existing test draft ID: '+already+' — skipping duplicate creation.');
+    return {status:'skipped_existing',draftId:already};
+  }
+  const html='<article class="inext-media">'+
+    '<div class="inext-media__hero">'+
+    '<div class="inext-media__summary">'+
+    '<p class="inext-media__eyebrow">Blogger API test — fictional content</p>'+
+    '<h2 class="inext-media__title">INEXTGROUP Test Record</h2>'+
+    '<p>This is fictional content created only to verify Blogger draft-write permission.</p>'+
+    '<p>Not a real movie, a TMDB record, or a published recommendation.</p>'+
+    '</div></div></article>';
+  const draft=bloggerInsertDraft_({
+    kind:'blogger#post',
+    title:'INEXTGROUP API Draft Test — Do Not Publish',
+    content:html,
+    labels:['Internal Test']
+  });
+  if (!draft || !draft.id) throw new Error('Blogger returned no draft ID. Inspect API response.');
+  p.setProperty(key,String(draft.id));
+  Logger.log('TEST DRAFT CREATED. ID: '+draft.id);
+  Logger.log('Open Blogger > Posts > Drafts; do not publish this test record.');
+  return {status:'created_draft',draftId:draft.id};
+}
