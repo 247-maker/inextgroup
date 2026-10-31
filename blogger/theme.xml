@@ -71,6 +71,14 @@ body.inext-home-ready .layout>section>h2{display:none}
 @media(max-width:1050px){.inext-poster-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:660px){.inext-poster-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inext-card__details{padding:11px}.inext-home-head{align-items:start}.inext-home-head h2{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.inext-card,.inext-card__image img{transition:none}.inext-card:hover,.inext-card:hover img{transform:none}}
+
+/* Home discovery: categories are already above the grid, so don't display an empty sidebar. */
+body.inext-home-ready .layout{grid-template-columns:minmax(0,1fr);max-width:1170px}
+body.inext-home-ready .layout>aside{display:none}
+.search{min-width:260px;max-width:360px;flex:1 1 280px;justify-content:flex-end}
+.search input{max-width:none;min-width:0;width:100%;flex:1 1 185px}
+.search button{flex:0 0 auto}
+@media(max-width:680px){.search{max-width:none;min-width:0;flex:1 1 100%;justify-content:stretch}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
