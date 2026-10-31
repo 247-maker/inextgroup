@@ -79,6 +79,16 @@ body.inext-home-ready .layout>aside{display:none}
 .search input{max-width:none;min-width:0;width:100%;flex:1 1 185px}
 .search button{flex:0 0 auto}
 @media(max-width:680px){.search{max-width:none;min-width:0;flex:1 1 100%;justify-content:stretch}}
+
+/* Expanded TMDB detail preview - cast and official trailer links. */
+.inext-cast-list{list-style:none!important;padding:0!important;margin:12px 0 20px!important;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.inext-cast-list li{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#172435;color:var(--ink);font-size:14px}
+.inext-cast-list span{display:block;color:var(--sub);font-size:12px;margin-top:3px}
+.inext-trailers{list-style:none!important;margin:12px 0!important;padding:0!important}
+.inext-trailers li{margin:10px 0}
+.inext-trailers a{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #2d796f;background:#15322f;color:#73ead0;font-size:14px;font-weight:750}
+.inext-trailers a:hover{border-color:var(--accent);color:#ddfff8}
+@media(max-width:550px){.inext-cast-list{grid-template-columns:1fr}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
