@@ -182,3 +182,62 @@ function testBloggerDraftWrite() {
   Logger.log('Open Blogger > Posts > Drafts; do not publish this test record.');
   return {status:'created_draft',draftId:draft.id};
 }
+
+
+/**
+ * Expanded details are read only. These functions NEVER create or publish Blogger posts.
+ * Data is fetched under the user's own approved TMDB access and is not persisted.
+ */
+function detailedPreview_(type) {
+  if (type!=='movie' && type!=='tv') throw new Error('Unsupported media type.');
+  const candidates=gather_().filter(x=>x.type===type);
+  if (!candidates.length) throw new Error('No eligible '+type+' record found in trending.');
+  const candidate=candidates[0].data;
+  const detail=tmdb_(type+'/'+candidate.id+'?append_to_response=credits,videos');
+  const genreMap=genres_(type);
+  const html=mediaHtml_(candidate,type,genreMap);
+  const additions=detailExtrasHtml_(detail,type);
+  const composed=html.replace('</article>',additions+'</article>');
+  const title=type==='tv'?detail.name:detail.title;
+  Logger.log('EXPANDED '+type.toUpperCase()+' PREVIEW: '+title+' (#'+detail.id+')');
+  Logger.log('PREVIEW HTML START\n'+composed+'\nPREVIEW HTML END');
+  return {type:type,id:detail.id,title:title,html:composed};
+}
+function detailExtrasHtml_(detail,type) {
+  const runtime=type==='movie'?detail.runtime:null;
+  const seasons=type==='tv'?detail.number_of_seasons:null;
+  const episodes=type==='tv'?detail.number_of_episodes:null;
+  const creators=type==='tv'?(detail.created_by||[]).map(p=>p.name).slice(0,5):
+    ((detail.credits&&detail.credits.crew)||[]).filter(p=>p.job==='Director').map(p=>p.name).slice(0,5);
+  const cast=((detail.credits&&detail.credits.cast)||[]).slice(0,8);
+  const officialVideos=((detail.videos&&detail.videos.results)||[])
+    .filter(v=>v.site==='YouTube'&&v.official===true&&v.type==='Trailer'&&/^[A-Za-z0-9_-]{11}$/.test(v.key||''))
+    .slice(0,2);
+  const facts=[];
+  if (Number.isFinite(runtime)&&runtime>0) facts.push('Runtime: '+Math.round(runtime)+' minutes');
+  if (Number.isSafeInteger(seasons)) facts.push('Seasons: '+seasons);
+  if (Number.isSafeInteger(episodes)) facts.push('Episodes: '+episodes);
+  let extra='<section class="inext-media__section"><h3>More details</h3>';
+  if (facts.length) extra+='<p>'+facts.map(esc_).join(' · ')+'</p>';
+  if (creators.length) extra+='<p><strong>'+(type==='tv'?'Created by':'Director')+':</strong> '+creators.map(esc_).join(', ')+'</p>';
+  if (cast.length) {
+    extra+='<h3>Cast</h3><ul class="inext-cast-list">';
+    for (const person of cast) {
+      extra+='<li><strong>'+esc_(person.name)+'</strong>'+
+        (person.character?' <span>as '+esc_(person.character)+'</span>':'')+'</li>';
+    }
+    extra+='</ul>';
+  }
+  if(officialVideos.length){
+    extra+='<h3>Official trailers</h3><ul class="inext-trailers">';
+    for(const video of officialVideos){
+      const href='https://www.youtube.com/watch?v='+video.key;
+      extra+='<li><a href="'+esc_(href)+'" target="_blank" rel="noopener noreferrer">'+esc_(video.name||'Watch official trailer')+'</a></li>';
+    }
+    extra+='</ul>';
+  }
+  extra+='</section>';
+  return extra;
+}
+function previewExpandedMovieDetailHtml() { return detailedPreview_('movie'); }
+function previewExpandedTvDetailHtml() { return detailedPreview_('tv'); }
