@@ -24,6 +24,22 @@
 .post-body .inext-media img,.post-body .inext-movie img{width:100%;max-height:420px;object-fit:contain;background:#0b1220}
 body.item-view .blog-posts .post-outer,body.item-view .blog-posts .post-outer-container{max-width:100%}
 ]]></b:skin>
+<!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
+<b:if cond='data:view.isSingleItem'>
+<style type='text/css'>
+.layout{grid-template-columns:minmax(0,1fr)!important;max-width:980px}
+.layout &gt; section{min-width:0;width:100%}
+.layout &gt; aside{display:none!important}
+.blog-posts{display:block!important;width:100%;min-width:0}
+.blog-posts .post-outer,.blog-posts .post-outer-container{width:100%!important;max-width:none!important;display:block!important}
+.blog-posts .post{padding:clamp(20px,4vw,44px)!important}
+.blog-posts .post-title{font-size:clamp(24px,3vw,38px);line-height:1.25}
+.blog-posts .post-body{font-size:17px;line-height:1.8}
+.blog-posts .post-body img{height:auto!important;max-height:none!important;object-fit:contain!important}
+.blog-posts .post-body figure img{max-height:520px!important}
+@media(max-width:680px){.blog-posts .post{padding:18px!important}}
+</style>
+</b:if>
 </head>
 <body>
 <header class='topbar'><div class='shell topinner'>
