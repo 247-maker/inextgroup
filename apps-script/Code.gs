@@ -81,7 +81,7 @@ function gather_() {
   for (const source of SETTINGS.sources) {
     const type=typeOf_(source);
     const page=tmdb_(source);
-    all=all.concat((page.results||[]).filter(m=>approved_(m,type)).slice(0,SETTINGS.maxDraftsPerRun).map(m=>({type:type,data:m})));
+    all=all.concat((page.results||[]).filter(m=>approved_(m,type)).slice(0,Math.ceil(SETTINGS.maxDraftsPerRun/SETTINGS.sources.length)).map(m=>({type:type,data:m})));
   }
   return all.slice(0,SETTINGS.maxDraftsPerRun);
 }
