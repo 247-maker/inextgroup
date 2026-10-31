@@ -41,6 +41,36 @@ body.item-view .blog-posts .post-outer,body.item-view .blog-posts .post-outer-co
 .inext-media__source{font-size:13px;color:var(--sub);line-height:1.6}
 .inext-media__source a{color:var(--accent);text-decoration:underline}
 @media(max-width:620px){.inext-media__hero{grid-template-columns:1fr;padding:14px;gap:16px}.inext-media__poster{max-width:230px}.inext-media__title{font-size:27px!important}}
+
+/* Responsive discovery homepage: uses published Blogger posts, never exposes the TMDB token. */
+.inext-home-sections{display:none}
+.inext-home-section{margin:0 0 46px}
+.inext-home-head{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:0 0 18px}
+.inext-home-head h2{font-size:clamp(22px,3vw,29px);margin:0;line-height:1.2}
+.inext-home-head p{margin:7px 0 0;color:var(--sub);font-size:13px}
+.inext-home-head a{font-size:14px;color:var(--accent);font-weight:700;white-space:nowrap}
+.inext-poster-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.inext-card{display:flex;flex-direction:column;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .2s ease,border-color .2s ease}
+.inext-card:hover,.inext-card:focus-within{transform:translateY(-3px);border-color:#3e847d}
+.inext-card__image{display:block;aspect-ratio:2/3;background:linear-gradient(155deg,#163b3f,#152035);overflow:hidden}
+.inext-card__image img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .2s ease}
+.inext-card:hover img{transform:scale(1.025)}
+.inext-card__fallback{display:flex;height:100%;padding:16px;align-items:center;justify-content:center;font-size:15px;text-align:center;color:#c7d7e5}
+.inext-card__details{padding:13px}
+.inext-card__label{color:var(--accent);font-size:11px;letter-spacing:.7px;text-transform:uppercase;font-weight:750}
+.inext-card__title{margin:6px 0 0;font-size:15px;line-height:1.35;font-weight:750;overflow-wrap:anywhere}
+.inext-card__title a{display:block}
+.inext-card__meta{color:var(--sub);font-size:12px;margin:7px 0 0}
+.inext-home-empty{border:1px dashed var(--border);background:#101927;color:var(--sub);border-radius:14px;padding:22px;font-size:14px}
+.inext-genre-nav{display:flex;flex-wrap:wrap;gap:10px;padding:0 0 30px}
+.inext-genre-nav a{border:1px solid var(--border);background:var(--panel);color:#d8e3ee;border-radius:999px;padding:8px 13px;font-size:13px}
+.inext-genre-nav a:hover{color:var(--accent);border-color:var(--accent)}
+body.inext-home-ready .inext-home-sections{display:block}
+body.inext-home-ready .layout #main{display:none}
+body.inext-home-ready .layout>section>h2{display:none}
+@media(max-width:1050px){.inext-poster-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:660px){.inext-poster-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inext-card__details{padding:11px}.inext-home-head{align-items:start}.inext-home-head h2{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.inext-card,.inext-card__image img{transition:none}.inext-card:hover,.inext-card:hover img{transform:none}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -70,8 +100,85 @@ body.item-view .blog-posts .post-outer,body.item-view .blog-posts .post-outer-co
 <form action='/search' class='search' method='get' role='search'><input aria-label='Search titles' name='q' placeholder='Search movies and shows...' required='required' type='search'/><button type='submit'>Search</button></form>
 </div></header>
 <b:if cond='data:view.isHomepage'><section class='hero'><div class='shell'><small>Discover movies and television</small><h1>Find your next great watch.</h1><p>Explore movie and television information, ratings, genres and official trailers. An independent discovery guide, not a streaming service.</p></div></section></b:if>
-<main class='shell layout'><section><b:if cond='data:view.isHomepage'><h2>Latest discoveries</h2></b:if>
+<main class='shell layout'><section><b:if cond='data:view.isHomepage'>
+<div class='inext-home-sections' id='inext-discovery'>
+  <nav aria-label='Discover by genre' class='inext-genre-nav'>
+    <a href='/search/label/Action'>Action</a><a href='/search/label/Drama'>Drama</a><a href='/search/label/Comedy'>Comedy</a><a href='/search/label/Thriller'>Thriller</a><a href='/search/label/Animation'>Animation</a><a href='/search/label/Documentary'>Documentary</a>
+  </nav>
+  <section aria-labelledby='inext-latest-title' class='inext-home-section'>
+    <div class='inext-home-head'><div><h2 id='inext-latest-title'>Latest discoveries</h2><p>Recently published movie and television guides</p></div></div>
+    <div class='inext-poster-grid' id='inext-latest-grid'></div>
+    <p class='inext-home-empty' id='inext-latest-empty'>New discoveries will appear when approved posts are published.</p>
+  </section>
+  <section aria-labelledby='inext-movie-title' class='inext-home-section' id='inext-movie-section'>
+    <div class='inext-home-head'><div><h2 id='inext-movie-title'>Movies</h2><p>Explore recently published movie guides</p></div><a href='/search/label/Movies'>See all movies</a></div>
+    <div class='inext-poster-grid' id='inext-movie-grid'></div>
+  </section>
+  <section aria-labelledby='inext-tv-title' class='inext-home-section' id='inext-tv-section'>
+    <div class='inext-home-head'><div><h2 id='inext-tv-title'>TV Shows</h2><p>Explore recently published series guides</p></div><a href='/search/label/TV%20Shows'>See all TV shows</a></div>
+    <div class='inext-poster-grid' id='inext-tv-grid'></div>
+  </section>
+</div>
+</b:if>
+<b:if cond='data:view.isHomepage'><h2>Latest discoveries</h2></b:if>
 <b:section id='main' class='main' maxwidgets='1' name='Posts' showaddelement='no'><b:widget id='Blog1' locked='true' title='Blog Posts' type='Blog' version='2' visible='true'/></b:section>
 </section><aside class='sidebox'><b:section id='sidebar' class='sidebar' name='Categories' showaddelement='yes'><b:widget id='Label1' locked='false' title='Browse genres' type='Label' version='2' visible='true'/></b:section></aside></main>
 <footer class='footer'><div class='shell footer-inner'><div>© INEXTGROUP — Independent movie and TV discovery.</div><div>This product uses the TMDB API but is not endorsed or certified by TMDB. Add the official TMDB logo before production use. Movies and posters belong to their respective rights holders.</div></div></footer>
+<b:if cond='data:view.isHomepage'>
+<script type='text/javascript'>
+//<![CDATA[
+(function () {
+  'use strict';
+  function initDiscovery() {
+    var host=document.getElementById('inext-discovery');
+    var posts=document.querySelectorAll('#main .post');
+    if (!host || !posts.length) return;
+    var feeds={latest:[],movie:[],tv:[]};
+    Array.prototype.forEach.call(posts,function(post){
+      var titleAnchor=post.querySelector('.post-title a, h3.post-title a, h2.post-title a');
+      if (!titleAnchor || !titleAnchor.getAttribute('href')) return;
+      var title=(titleAnchor.textContent||'').trim();
+      if (!title) return;
+      var labels=Array.prototype.map.call(post.querySelectorAll('.post-labels a, a[rel="tag"]'),function(a){return (a.textContent||'').trim().toLowerCase();});
+      var isTv=labels.indexOf('tv shows')!==-1 || !!post.querySelector('.inext-media__eyebrow') && /tv show/i.test(post.querySelector('.inext-media__eyebrow').textContent);
+      var isMovie=labels.indexOf('movies')!==-1 || !!post.querySelector('.inext-media__eyebrow') && /movie information/i.test(post.querySelector('.inext-media__eyebrow').textContent);
+      var poster=post.querySelector('.inext-media__poster img, .inext-movie img, .post-body img');
+      var rating=post.querySelector('.inext-media__rating');
+      var record={href:titleAnchor.href,title:title,poster:poster?poster.getAttribute('src'):'',type:isTv?'TV show':isMovie?'Movie':'Article',rating:rating?(rating.textContent||'').trim():''};
+      feeds.latest.push(record);
+      if(isTv) feeds.tv.push(record);
+      if(isMovie && !isTv) feeds.movie.push(record);
+    });
+    function linkCard(item) {
+      var article=document.createElement('article');article.className='inext-card';
+      var cover=document.createElement('a');cover.className='inext-card__image';cover.href=item.href;cover.setAttribute('aria-label','Open '+item.title);
+      if(item.poster){
+        var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=item.poster;img.alt=item.title+' poster';cover.appendChild(img);
+      }else{
+        var fallback=document.createElement('span');fallback.className='inext-card__fallback';fallback.textContent=item.title;cover.appendChild(fallback);
+      }
+      var details=document.createElement('div');details.className='inext-card__details';
+      var label=document.createElement('div');label.className='inext-card__label';label.textContent=item.type;
+      var h=document.createElement('h3');h.className='inext-card__title';
+      var a=document.createElement('a');a.href=item.href;a.textContent=item.title;h.appendChild(a);
+      details.appendChild(label);details.appendChild(h);
+      if(item.rating){var meta=document.createElement('p');meta.className='inext-card__meta';meta.textContent=item.rating;details.appendChild(meta);}
+      article.appendChild(cover);article.appendChild(details);return article;
+    }
+    function fill(id,items,max){
+      var node=document.getElementById(id);if(!node)return;
+      items.slice(0,max).forEach(function(item){node.appendChild(linkCard(item));});
+    }
+    fill('inext-latest-grid',feeds.latest,8);fill('inext-movie-grid',feeds.movie,8);fill('inext-tv-grid',feeds.tv,8);
+    if(feeds.latest.length)document.getElementById('inext-latest-empty').style.display='none';
+    if(!feeds.movie.length)document.getElementById('inext-movie-section').style.display='none';
+    if(!feeds.tv.length)document.getElementById('inext-tv-section').style.display='none';
+    document.body.classList.add('inext-home-ready');
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDiscovery);
+  else initDiscovery();
+})();
+//]]>
+</script>
+</b:if>
 </body></html>
