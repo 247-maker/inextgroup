@@ -105,6 +105,10 @@ body.inext-home-ready .layout>section>h2{display:none}
   <nav aria-label='Discover by genre' class='inext-genre-nav'>
     <a href='/search/label/Action'>Action</a><a href='/search/label/Drama'>Drama</a><a href='/search/label/Comedy'>Comedy</a><a href='/search/label/Thriller'>Thriller</a><a href='/search/label/Animation'>Animation</a><a href='/search/label/Documentary'>Documentary</a>
   </nav>
+  <section aria-labelledby='inext-trending-title' class='inext-home-section' id='inext-trending-section'>
+    <div class='inext-home-head'><div><h2 id='inext-trending-title'>Trending picks</h2><p>Editorially selected posts labelled Trending</p></div><a href='/search/label/Trending'>See trending posts</a></div>
+    <div class='inext-poster-grid' id='inext-trending-grid'></div>
+  </section>
   <section aria-labelledby='inext-latest-title' class='inext-home-section'>
     <div class='inext-home-head'><div><h2 id='inext-latest-title'>Latest discoveries</h2><p>Recently published movie and television guides</p></div></div>
     <div class='inext-poster-grid' id='inext-latest-grid'></div>
@@ -132,8 +136,8 @@ body.inext-home-ready .layout>section>h2{display:none}
   function initDiscovery() {
     var host=document.getElementById('inext-discovery');
     var posts=document.querySelectorAll('#main .post');
-    if (!host || !posts.length) return;
-    var feeds={latest:[],movie:[],tv:[]};
+    if (!host) return;
+    var feeds={latest:[],movie:[],tv:[],trending:[]};
     Array.prototype.forEach.call(posts,function(post){
       var titleAnchor=post.querySelector('.post-title a, h3.post-title a, h2.post-title a');
       if (!titleAnchor || !titleAnchor.getAttribute('href')) return;
@@ -146,6 +150,7 @@ body.inext-home-ready .layout>section>h2{display:none}
       var rating=post.querySelector('.inext-media__rating');
       var record={href:titleAnchor.href,title:title,poster:poster?poster.getAttribute('src'):'',type:isTv?'TV show':isMovie?'Movie':'Article',rating:rating?(rating.textContent||'').trim():''};
       feeds.latest.push(record);
+      if(labels.indexOf('trending')!==-1) feeds.trending.push(record);
       if(isTv) feeds.tv.push(record);
       if(isMovie && !isTv) feeds.movie.push(record);
     });
@@ -169,7 +174,8 @@ body.inext-home-ready .layout>section>h2{display:none}
       var node=document.getElementById(id);if(!node)return;
       items.slice(0,max).forEach(function(item){node.appendChild(linkCard(item));});
     }
-    fill('inext-latest-grid',feeds.latest,8);fill('inext-movie-grid',feeds.movie,8);fill('inext-tv-grid',feeds.tv,8);
+    fill('inext-trending-grid',feeds.trending,8);fill('inext-latest-grid',feeds.latest,8);fill('inext-movie-grid',feeds.movie,8);fill('inext-tv-grid',feeds.tv,8);
+    if(!feeds.trending.length)document.getElementById('inext-trending-section').style.display='none';
     if(feeds.latest.length)document.getElementById('inext-latest-empty').style.display='none';
     if(!feeds.movie.length)document.getElementById('inext-movie-section').style.display='none';
     if(!feeds.tv.length)document.getElementById('inext-tv-section').style.display='none';
