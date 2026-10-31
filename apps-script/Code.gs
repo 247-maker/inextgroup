@@ -131,3 +131,19 @@ function importDrafts() {
     return outcomes;
   } finally {lock.releaseLock();}
 }
+
+/**
+ * Read-only HTML preview for one genuine TMDB record.
+ * Does NOT create a Blogger draft or publish anything.
+ * The resulting HTML is shown only in the Apps Script execution log.
+ */
+function previewMovieDetailHtml() {
+  const type='movie';
+  const candidates=gather_().filter(x=>x.type===type);
+  if (!candidates.length) throw new Error('No eligible TMDB movie records found.');
+  const movie=candidates[0].data;
+  const html=mediaHtml_(movie,type,genres_(type));
+  Logger.log('PREVIEW TITLE: '+movie.title);
+  Logger.log('PREVIEW HTML START\n'+html+'\nPREVIEW HTML END');
+  return {title:movie.title,html:html};
+}
