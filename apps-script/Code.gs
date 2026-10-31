@@ -66,15 +66,27 @@ function mediaHtml_(m,type,genreNames) {
   const url='https://www.themoviedb.org/'+type+'/'+encodeURIComponent(m.id);
   const poster='https://image.tmdb.org/t/p/w500'+m.poster_path;
   const avg=Number(m.vote_average);
-  const rating=Number.isFinite(avg)?avg.toFixed(1)+'/10':'Not rated';
+  const rated=Number(m.vote_count)>0 && Number.isFinite(avg);
+  const rating=rated?avg.toFixed(1)+'/10':'Not yet rated';
   const genreList=(m.genre_ids||[]).map(id=>genreNames[id]).filter(Boolean);
-  return '<article class="inext-media"><figure><img alt="'+esc_(title)+' poster" loading="lazy" src="'+esc_(poster)+'"/></figure>'+
-    '<p><strong>'+(type==='tv'?'First aired':'Release')+':</strong> '+esc_(date)+
-    ' | <strong>TMDB community rating:</strong> '+esc_(rating)+'</p>'+
-    (genreList.length?'<p><strong>Genres:</strong> '+genreList.map(esc_).join(', ')+'</p>':'')+
-    '<h2>Overview</h2><p>'+esc_(m.overview)+'</p>'+
-    '<p>Source: <a href="'+esc_(url)+'" rel="noopener noreferrer" target="_blank">TMDB details</a></p>'+
-    '<p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p></article>';
+  const facts='<li>'+esc_(date)+'</li>'+
+    '<li class="inext-media__rating">TMDB ★ '+esc_(rating)+'</li>'+
+    '<li>'+(type==='tv'?'Television series':'Movie')+'</li>';
+  return '<article class="inext-media">'+
+    '<div class="inext-media__hero">'+
+    '<figure class="inext-media__poster"><img alt="'+esc_(title)+' official poster via TMDB" loading="lazy" src="'+esc_(poster)+'"/></figure>'+
+    '<div class="inext-media__summary">'+
+    '<p class="inext-media__eyebrow">'+(type==='tv'?'TV Show':'Movie')+' information</p>'+
+    '<h2 class="inext-media__title">'+esc_(title)+'</h2>'+
+    '<ul class="inext-media__facts">'+facts+'</ul>'+
+    (genreList.length?'<p class="inext-media__genres"><strong>Genres:</strong> '+genreList.map(esc_).join(' · ')+'</p>':'')+
+    '</div></div>'+
+    '<section class="inext-media__section"><h3>Overview</h3><p>'+esc_(m.overview)+'</p></section>'+
+    '<section class="inext-media__section"><h3>Movie and TV information</h3>'+
+    '<p>Explore more information and available official videos on the original TMDB listing. Streaming or download availability is not provided here.</p>'+
+    '<p><a href="'+esc_(url)+'" rel="noopener noreferrer" target="_blank">View the '+(type==='tv'?'show':'movie')+' on TMDB</a></p></section>'+
+    '<p class="inext-media__source">Source: TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>'+
+    '</article>';
 }
 function gather_() {
   let all=[];
