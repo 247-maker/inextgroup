@@ -1055,27 +1055,54 @@ function professionalSupplementHtml_(d,type,index){
  * Backup a live post as a PRIVATE Blogger draft and verify it exists.
  * Never overwrite a published post unless the backup has been persisted.
  */
+/**
+ * Blogger sometimes rejects posts.get for DRAFT posts (404/403) even when the
+ * draft was created successfully. Use ADMIN view first, then verify via
+ * posts.list?status=draft, which is also used by the site's other draft flows.
+ * This function NEVER updates a live post without a separate, read-back
+ * verified private backup draft.
+ */
 function inextBackupPublishedPost_(index,p){
   const marker='INEXT_PRO_BACKUP_'+p.id;
-  const prior=props_().getProperty(marker);
-  if(prior)return prior;
-  const snapshot=bloggerInsertDraft_({
-    kind:'blogger#post',
-    title:'INTERNAL BACKUP — '+String(p.title||'Untitled').slice(0,100)+' — '+p.id,
-    content:p.content||'',
-    labels:['INEXT Backup']
-  });
-  if(!snapshot||!snapshot.id)throw new Error('No backup draft ID. Live post unchanged.');
-  const verify=UrlFetchApp.fetch(index.root+'/posts/'+encodeURIComponent(snapshot.id),{
-    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
-    muteHttpExceptions:true,followRedirects:false
-  });
-  if(verify.getResponseCode()!==200)throw new Error('Backup verification failed; live post unchanged.');
-  const saved=JSON.parse(verify.getContentText());
-  if(String(saved.content||'')!==String(p.content||''))
-    throw new Error('Backup body verification mismatch; live post unchanged.');
-  props_().setProperty(marker,String(snapshot.id));
-  return String(snapshot.id);
+  const props=props_();
+  const expectedTitle='INTERNAL BACKUP — '+String(p.title||'Untitled').slice(0,100)+' — '+p.id;
+  const original=String(p.content||'');
+  if(original.length<100)throw new Error('Refusing to back up an unexpectedly empty published post '+p.id);
+  const root=index.root+'/posts';
+  // Existing draft list allows recovery if previous run created a backup,
+  // but failed immediately afterwards on an unsupported posts.get request.
+  const drafts=bloggerListAudit_(root+'?status=draft&maxResults=100&fetchBodies=true',300);
+  if(drafts.truncated)throw new Error('Draft listing truncated. Cannot verify original backup safely.');
+  const priorId=props.getProperty(marker);
+  const matches=drafts.items.filter(d=>
+    (priorId&&String(d.id)===String(priorId))||
+    (String(d.title||'')===expectedTitle&&(d.labels||[]).indexOf('INEXT Backup')!==-1)
+  );
+  let draft=matches[0]||null;
+  if(!draft){
+    const created=bloggerInsertDraft_({
+      kind:'blogger#post',title:expectedTitle,content:original,labels:['INEXT Backup']
+    });
+    if(!created||!created.id)throw new Error('Backup draft not created; live post unchanged.');
+    const verified=bloggerListAudit_(root+'?status=draft&maxResults=100&fetchBodies=true',300);
+    if(verified.truncated)throw new Error('Draft inventory truncated after creation; live post unchanged.');
+    draft=verified.items.find(d=>String(d.id)===String(created.id));
+    if(!draft)throw new Error('Backup created but not visible in Blogger draft list; live post unchanged. Draft ID '+created.id);
+  }
+  // Blogger can rewrite harmless HTML whitespace/attribute formatting on save.
+  // Confirm meaningful body data, media identity, and labels survived.
+  const stored=String(draft.content||'');
+  const before=stripHtmlAudit_(original),after=stripHtmlAudit_(stored);
+  const compact=x=>x.replace(/\s+/g,' ').trim();
+  if((draft.labels||[]).indexOf('INEXT Backup')===-1||
+     String(draft.title||'')!==expectedTitle||
+     stored.length<100||
+     compact(before)!==compact(after)){
+    throw new Error('Backup data differs after Blogger normalization; live post unchanged. Inspect private backup draft '+draft.id);
+  }
+  props.setProperty(marker,String(draft.id));
+  Logger.log('Verified private Blogger backup for '+p.title+': '+draft.id);
+  return String(draft.id);
 }
 
 /**
