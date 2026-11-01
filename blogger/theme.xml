@@ -200,6 +200,28 @@ body.item-view .inext-pro-media{color:#edf5ff}
 @media(max-width:900px){.inext-pro-hero{grid-template-columns:170px 1fr;padding:22px}.inext-pro-cast-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.inext-pro-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.inext-pro-hero{grid-template-columns:1fr;padding:18px;gap:18px}.inext-pro-cover{max-width:185px}.inext-pro-jump{position:static}.inext-pro-cast-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.inext-pro-info-grid{grid-template-columns:1fr 1fr;gap:9px}.inext-info-tile{padding:10px}.inext-pro-section{padding:20px 0}}
 @media(max-width:390px){.inext-pro-info-grid{grid-template-columns:1fr}.inext-pro-person-name{font-size:13px}}
+
+/* Media database additions: photographic gallery, cast credits and release regions. */
+.inext-pro-crew-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.inext-pro-crew-member{padding:12px 14px;background:#172537;border:1px solid #30475a;border-radius:12px;min-width:0}
+.inext-pro-crew-member strong,.inext-pro-crew-member>a{display:block;color:#eaf7ff;font-weight:750;font-size:14px;overflow-wrap:anywhere}
+.inext-pro-crew-member>a{color:#74edd5;text-decoration:underline;text-underline-offset:3px}
+.inext-pro-crew-member small{display:block;color:#a9bacc;font-size:12px;margin-top:4px}
+.inext-pro-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.inext-pro-gallery figure{margin:0;background:#142234;border:1px solid #33475a;border-radius:13px;overflow:hidden}
+.inext-pro-gallery img{display:block;width:100%!important;height:175px!important;object-fit:cover!important;border-radius:0!important}
+.inext-pro-gallery figcaption{padding:7px 10px;color:#cbd9e8;font-size:12px}
+.inext-pro-release-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.inext-pro-release-list>div{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 13px;border:1px solid #30475a;border-radius:10px;background:#152335;font-size:13px}
+.inext-pro-release-list span{color:#c6d9e9}
+.inext-pro-caption{font-size:13px!important;color:#93a8bb!important;margin:12px 0 0}
+.inext-pro-simple-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;list-style:none!important;padding:0!important}
+.inext-pro-simple-list li{border:1px solid #30475a;border-radius:10px;padding:11px 14px;background:#152335;color:#e3edf8;font-size:14px}
+.inext-pro-simple-list small{color:#91a8be}
+.inext-pro-jump{overflow-x:auto;scrollbar-width:thin}
+.inext-pro-jump a{white-space:nowrap}
+@media(max-width:720px){.inext-pro-crew-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inext-pro-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.inext-pro-release-list{grid-template-columns:1fr}}
+@media(max-width:440px){.inext-pro-crew-grid,.inext-pro-simple-list{grid-template-columns:1fr}.inext-pro-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.inext-pro-gallery img{height:115px!important}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
