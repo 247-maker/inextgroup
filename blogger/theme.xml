@@ -101,6 +101,20 @@ body.inext-home-ready .layout>aside{display:none}
 .inext-catalog-tools[hidden],.inext-catalog-empty[hidden]{display:none!important}
 @media(max-width:760px){.inext-catalog-filters{grid-template-columns:1fr 1fr}.inext-catalog-filters input{grid-column:1/-1}}
 @media(max-width:450px){.inext-catalog-filters{grid-template-columns:1fr}.inext-catalog-filters input{grid-column:auto}}
+
+/* Editorial legal pages, transparent sponsorships and optional ad slots. */
+.inext-affiliate-notice{padding:12px 16px;margin:18px 0;border-left:3px solid var(--accent);background:#13282b;color:#e5fff8;border-radius:0 9px 9px 0;font-size:14px}
+.inext-affiliate-box{padding:18px;background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:18px 0}
+.inext-affiliate-box small{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:1px;font-weight:800}
+.inext-affiliate-box a{display:inline-block;margin-top:10px;padding:10px 14px;background:var(--accent);color:#06281f;border-radius:9px;font-weight:800}
+.inext-ad-slot{margin:22px 0;min-height:80px}
+.inext-ad-slot:empty{display:none}
+.inext-footer-pages{width:100%;border-top:1px solid var(--border);padding-top:14px}
+.inext-footer-pages ul{padding:0;margin:0;list-style:none;display:flex;flex-wrap:wrap;gap:12px 20px}
+.inext-footer-pages li{display:inline}
+.inext-footer-pages a{font-size:13px;color:#c7d9e6}
+body.static_page .post-body h2,body.static_page .post-body h3{margin-top:25px}
+body.static_page .post-body p{line-height:1.8}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -173,7 +187,7 @@ body.inext-home-ready .layout>aside{display:none}
 <b:if cond='data:view.isHomepage'><h2>Latest discoveries</h2></b:if>
 <b:section id='main' class='main' maxwidgets='1' name='Posts' showaddelement='no'><b:widget id='Blog1' locked='true' title='Blog Posts' type='Blog' version='2' visible='true'/></b:section>
 </section><aside class='sidebox'><b:section id='sidebar' class='sidebar' name='Categories' showaddelement='yes'><b:widget id='Label1' locked='false' title='Browse genres' type='Label' version='2' visible='true'/></b:section></aside></main>
-<footer class='footer'><div class='shell footer-inner'><div>© INEXTGROUP — Independent movie and TV discovery.</div><div>This product uses the TMDB API but is not endorsed or certified by TMDB. Movie and TV artwork belongs to its respective rights holders.</div></div></footer>
+<footer class='footer'><div class='shell footer-inner'><div>© INEXTGROUP — Independent movie and TV discovery.</div><div>This product uses the TMDB API but is not endorsed or certified by TMDB. Movie and TV artwork belongs to its respective rights holders.</div><div class='inext-footer-pages'><b:section id='footerPages' name='Footer legal and information pages' showaddelement='yes'><b:widget id='PageList1' locked='false' title='Site information' type='PageList' version='2' visible='true'/></b:section></div></div></footer>
 <b:if cond='data:view.isHomepage'>
 <script type='text/javascript'>
 //<![CDATA[
