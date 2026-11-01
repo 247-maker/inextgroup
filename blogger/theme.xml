@@ -265,6 +265,63 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
 .inext-cast-controls button:hover{background:#256c60}
 .inext-cast-status{font-size:13px;color:#a4c7c7}
 .inext-pro-person[hidden]{display:none!important}
+
+/* INEXTGROUP v2 — TV/Movie detail hierarchy: cinematic header, primary editorial content and factual sidebar. */
+body.item-view .layout{max-width:1320px!important;grid-template-columns:minmax(0,1fr)!important}
+body.item-view .layout>section{width:100%;min-width:0}
+body.item-view .blog-posts .post{padding:0!important}
+body.item-view .blog-posts .post-outer,body.item-view .blog-posts .post-outer-container{border:0!important;background:transparent!important;overflow:visible!important}
+body.item-view .blog-posts .post-body{color:#d4e3ef}
+body.item-view .post-title{display:none!important}
+body.item-view .inext-pro-banner{border:0;border-radius:16px;min-height:370px;box-shadow:inset 0 -50px 90px #091521}
+body.item-view .inext-pro-hero{max-width:1220px;margin:auto;grid-template-columns:235px minmax(0,1fr);gap:35px;padding:36px}
+body.item-view .inext-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 268px;align-items:start;gap:30px;min-width:0;margin:25px 0}
+body.item-view .inext-detail-main{min-width:0}
+body.item-view .inext-detail-sidebar{position:sticky;top:95px;background:#121e2d;border:1px solid #304454;border-radius:15px;padding:22px;min-width:0}
+body.item-view .inext-detail-sidebar h3{color:#fff;font-size:20px;margin:0 0 18px}
+body.item-view .inext-detail-sidebar h4{color:#edf9ff;font-size:15px;margin:22px 0 10px}
+body.item-view .inext-sidebar-facts{margin:0;display:grid;gap:17px}
+body.item-view .inext-sidebar-facts dt{color:#a3b6c8;font-size:12px;text-transform:uppercase;font-weight:750;letter-spacing:.35px}
+body.item-view .inext-sidebar-facts dd{color:#f3fbff;font-size:15px;font-weight:550;margin:4px 0 0;overflow-wrap:anywhere}
+body.item-view .inext-sidebar-facts a{color:#78ecd5;text-decoration:underline}
+body.item-view .inext-keyword-cloud{display:flex;flex-wrap:wrap;gap:7px}
+body.item-view .inext-keyword-cloud span{padding:6px 9px;background:#253548;border:1px solid #395365;border-radius:7px;color:#d6e5f2;font-size:12px}
+body.item-view .inext-sidebar-note{font-size:12px;color:#a1b6c6;line-height:1.7;border-top:1px solid #2d4557;padding-top:15px;margin-top:20px}
+body.item-view .inext-tabs{top:74px;margin-top:0}
+body.item-view .inext-tab-panels{margin-bottom:22px}
+body.item-view .inext-pro-section h3{font-size:22px}
+body.item-view .inext-video-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+body.item-view .inext-video-card{position:relative;display:block;overflow:hidden;border:1px solid #2e4759;border-radius:11px;background:#18283b}
+body.item-view .inext-video-card img{width:100%!important;height:auto!important;aspect-ratio:16/9;object-fit:cover;border-radius:0!important}
+body.item-view .inext-video-card strong{display:block;color:#effaff;font-size:14px;padding:7px 12px 0}
+body.item-view .inext-video-card small{display:block;color:#a8c6d8;font-size:12px;padding:1px 12px 10px}
+body.item-view .inext-video-card:hover{border-color:#65dcc8}
+body.item-view .inext-video-play{position:absolute;top:34%;left:44%;display:grid;place-items:center;background:#121820dd;color:#fff;font-size:20px;border-radius:50%;width:48px;height:48px}
+/* The user requested no Blogger comments or comment form on Single Movie/TV pages.
+   These nodes belong to Blogger's Blog widget, not to TMDB reviews metadata. */
+body.item-view .comments,body.item-view #comments,body.item-view #comment-form,body.item-view .comment-form,
+body.item-view .comment-link,body.item-view .comments-content,body.item-view .comments-title,
+body.item-view .threaded-comments,body.item-view .post-comment-link,body.item-view .comment-replybox-thread,
+body.item-view .comment-replybox-single,body.item-view .comment-footer,
+body.item-view .comment-form-container{display:none!important}
+@media(max-width:1000px){
+ body.item-view .inext-detail-layout{grid-template-columns:minmax(0,1fr) 225px;gap:17px}
+ body.item-view .inext-detail-sidebar{padding:15px}
+ body.item-view .inext-pro-hero{grid-template-columns:185px 1fr;padding:24px;gap:22px}
+}
+@media(max-width:760px){
+ body.item-view .inext-detail-layout{display:flex;flex-direction:column;margin:16px 0}
+ body.item-view .inext-detail-main,body.item-view .inext-detail-sidebar{width:100%}
+ body.item-view .inext-detail-sidebar{position:static}
+ body.item-view .inext-pro-hero{grid-template-columns:145px minmax(0,1fr);padding:17px;gap:15px;align-items:start}
+ body.item-view .inext-pro-summary h2{font-size:clamp(23px,5vw,34px)!important}
+}
+@media(max-width:480px){
+ body.item-view .inext-pro-hero{display:block}
+ body.item-view .inext-pro-cover{max-width:145px;margin-bottom:15px}
+ body.item-view .inext-video-cards{grid-template-columns:1fr}
+ body.item-view .inext-pro-banner{min-height:auto}
+}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
