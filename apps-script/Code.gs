@@ -857,7 +857,7 @@ function professionalMediaHtml_(d,type,index) {
  const tile=(label,value)=>value?'<div class="inext-info-tile"><dt>'+e(label)+'</dt><dd>'+e(value)+'</dd></div>':'';
  const money=n=>Number.isFinite(n)&&n>0?'$'+Math.round(n).toLocaleString('en-US'):'';
  const rating=Number.isFinite(d.vote_average)&&d.vote_count>0?d.vote_average.toFixed(1)+'/10 · '+d.vote_count.toLocaleString('en-US')+' TMDB votes':'';
- const credit=d.credits||{},crew=credit.crew||[],cast=(credit.cast||[]).slice(0,16);
+ const credit=d.credits||{},crew=credit.crew||[],cast=(credit.cast||[]).slice(0,60);
  const directors=crew.filter(p=>p.job==='Director').map(p=>p.name).filter(Boolean);
  const writers=crew.filter(p=>/^(Screenplay|Writer|Story|Teleplay)$/.test(p.job||'')).map(p=>p.name).filter(Boolean);
  const leads=tv?(d.created_by||[]).map(p=>p.name).filter(Boolean):directors;
@@ -882,7 +882,7 @@ function professionalMediaHtml_(d,type,index) {
  html+='</div></div></div>';
  html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-crew">Crew</a><a href="#inext-gallery">Gallery</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
  if(d.overview)html+='<section class="inext-pro-section" id="inext-overview"><h3>Story Overview</h3><p>'+e(d.overview)+'</p></section>';
- html+='<section class="inext-pro-section" id="inext-cast"><h3>Cast &amp; Characters</h3><div class="inext-pro-cast-grid">';
+ html+='<section class="inext-pro-section" id="inext-cast"><h3>Cast &amp; Characters'+((credit.cast||[]).length>cast.length?' ('+cast.length+' of '+credit.cast.length+')':' ('+cast.length+')')+'</h3><div class="inext-pro-cast-grid">';
  for(const p of cast){
    if(!p.name)continue;
    const internal=item.people[String(p.id)]||'',photo=img(p.profile_path,'w185');
