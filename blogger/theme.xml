@@ -402,7 +402,7 @@ body.item-view .inext-pro-media{color:#edf5ff}
     var name=(titleEl.textContent||'').trim();
     var description=(overview.textContent||'').trim();
     if(!name||description.length<80)return;
-    var facts=entry.querySelectorAll('.inext-media__facts li');
+    var facts=entry.querySelectorAll('.inext-media__facts li, .inext-pro-pills span');
     var date='';
     Array.prototype.forEach.call(facts,function(node){
       var value=(node.textContent||'').trim();
