@@ -907,6 +907,7 @@ function professionalMediaHtml_(d,type,index) {
  if(videos.length)videos.forEach(v=>{html+='<p><a class="inext-pro-trailer" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer">▶ '+e(v.name||'Watch official trailer')+'</a></p>';});
  else html+='<p>No verified official trailer was returned by the API for this record.</p>';
  html+='</section>';
+ if(tv)html+=professionalTvSeasonsHtml_(d);
  html+=professionalVerifiedEditorial_(d,type);
  html+=professionalSupplementHtml_(d,type,item);
  const currentKey=type+':'+d.id;
@@ -1411,4 +1412,32 @@ function inextLaunchQualityAudit_(){
    note:'Checks published Blogger inventory only; does not certify live appearance, AdSense, permissions, DNS, indexing, or user experience.'};
  Logger.log('INEXTGROUP QUALITY AUDIT '+JSON.stringify(result,null,2));
  return result;
+}
+
+/**
+ * TMDB-style seasonal discovery, only verified season data in the TV API.
+ * Avoids fabricated episode/permalink pages; each card expands locally.
+ */
+function professionalTvSeasonsHtml_(d){
+ if(!Array.isArray(d.seasons)||!d.seasons.length)return '';
+ const e=esc_;
+ const img=p=>p&&/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(p)?'https://image.tmdb.org/t/p/w342'+p:'';
+ let html='<section id="inext-seasons" class="inext-pro-section"><h3>Seasons &amp; Episodes</h3><p class="inext-pro-caption">Episode counts and dates come from available TMDB series metadata. Individual episode profiles are listed only when published on INEXTGROUP.</p><div class="inext-seasons-grid">';
+ for(const season of d.seasons.slice(0,24)){
+  if(!Number.isSafeInteger(season.season_number))continue;
+  const name=String(season.name||'Season '+season.season_number),poster=img(season.poster_path);
+  const episodes=Number.isSafeInteger(season.episode_count)?season.episode_count:null;
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(season.air_date||'')?season.air_date:'';
+  html+='<details class="inext-season-card"><summary>'+
+    (poster?'<img src="'+e(poster)+'" alt="'+e(name)+' poster" width="95" height="142" loading="lazy"/>':'<span class="inext-season-fallback" aria-hidden="true">TV</span>')+
+    '<span><strong>'+e(name)+'</strong>'+
+    (date?'<small>First aired: '+e(date)+'</small>':'')+
+    (episodes!==null?'<small>'+episodes+' episode(s)</small>':'')+
+    '</span><span class="inext-season-expander" aria-hidden="true">+</span></summary>'+
+    (season.overview?'<div class="inext-season-description"><p>'+e(season.overview)+'</p></div>':
+      '<div class="inext-season-description"><p>No official season summary is currently available.</p></div>')+
+    '</details>';
+ }
+ html+='</div></section>';
+ return html;
 }
