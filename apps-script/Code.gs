@@ -565,9 +565,10 @@ function prepareLicensedTmdbDraftBatch() {
     const blogId=required_('BLOGGER_BLOG_ID');
     const root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(blogId);
     const known=bloggerListAudit_(root+'/posts?status=live&maxResults=100',300);
+    const existingDrafts=bloggerListAudit_(root+'/posts?status=draft&maxResults=100',300);
     const result=[];
-    if(known.truncated)throw new Error('Published inventory too large for safe duplicate checks. Stop and review.');
-    const publishedTitles=new Set(known.items.map(x=>String(x.title||'').toLowerCase()));
+    if(known.truncated||existingDrafts.truncated)throw new Error('Blogger inventory truncated; stop for safe duplicate checks.');
+    const publishedTitles=new Set(known.items.concat(existingDrafts.items).map(x=>String(x.title||'').toLowerCase()));
     const genreMaps={};
     for(const entry of entries){
       const m=entry.data,type=entry.type,key='tmdb_'+type+'_'+m.id;
@@ -616,4 +617,62 @@ function tmdbIntegrationStatus() {
   };
   Logger.log(JSON.stringify(status,null,2));
   return status;
+}
+
+
+/**
+ * Explicitly publishes ONLY manually reviewed TMDB drafts, selected by
+ * the owner via Script Property TMDB_EDITORIAL_APPROVED_IDS.
+ * No scheduled trigger, no publishing of drafts with editorial warning.
+ * Blogger documentation: POST /blogs/{blogId}/posts/{postId}/publish.
+ */
+function publishReviewedTmdbPosts() {
+  if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes'){
+    throw new Error('Commercial TMDB data/artwork licensing gate is not approved in Script Properties.');
+  }
+  const raw=String(props_().getProperty('TMDB_EDITORIAL_APPROVED_IDS')||'').trim();
+  if(!raw)throw new Error('Set TMDB_EDITORIAL_APPROVED_IDS to the reviewed Blogger draft IDs (comma-separated).');
+  const ids=[...new Set(raw.split(/[\s,;]+/).filter(Boolean))].slice(0,6);
+  if(ids.some(id=>!/^\d{5,30}$/.test(id)))throw new Error('Only numeric Blogger post IDs are allowed.');
+  const blogId=required_('BLOGGER_BLOG_ID');
+  const root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(blogId)+'/posts/';
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))throw new Error('Another publication is running.');
+  try{
+    const validated=[];
+    for(const id of ids){
+      const get=UrlFetchApp.fetch(root+encodeURIComponent(id),{
+        headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+        muteHttpExceptions:true,followRedirects:false
+      });
+      if(get.getResponseCode()!==200)throw new Error('Cannot read draft '+id+': HTTP '+get.getResponseCode());
+      const p=JSON.parse(get.getContentText());
+      const labels=(p.labels||[]).map(x=>String(x).toLowerCase());
+      if(String(p.status).toUpperCase()!=='DRAFT')throw new Error(id+' is not a draft; stop.');
+      if(!labels.includes('tmdb')||!(labels.includes('movies')||labels.includes('tv shows')))throw new Error(id+' is not a labelled TMDB media draft.');
+      const body=String(p.content||'');
+      if(/Editorial review required before publishing|This is an unreviewed metadata draft/i.test(body)){
+        throw new Error('Remove the editorial-review notice and substantively review/edit draft '+id+' in Blogger first.');
+      }
+      if(!/inext-media__hero/.test(body)||stripHtmlAudit_(body).length<500)throw new Error('Insufficient reviewed media details in '+id);
+      if(/do not publish|fictional content|layout test|internal test/i.test(String(p.title||'')+' '+body.slice(0,400)))throw new Error('Test-content marker found in '+id);
+      validated.push({id:id,title:p.title||''});
+    }
+    // All drafts are validated before the first write.
+    const published=[];
+    for(const item of validated){
+      const response=UrlFetchApp.fetch(root+encodeURIComponent(item.id)+'/publish',{
+        method:'post',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+        muteHttpExceptions:true,followRedirects:false
+      });
+      if(response.getResponseCode()!==200&&response.getResponseCode()!==201){
+        throw new Error('Published '+published.length+' of '+validated.length+'; stopped at '+item.id+' HTTP '+response.getResponseCode());
+      }
+      const info=JSON.parse(response.getContentText());
+      published.push({title:item.title,id:item.id,status:'published',url:info.url||''});
+    }
+    Logger.log('MANUALLY APPROVED TMDB POST PUBLICATION');
+    Logger.log(JSON.stringify(published,null,2));
+    return published;
+  }finally{lock.releaseLock();}
 }
