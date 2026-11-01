@@ -89,6 +89,18 @@ body.inext-home-ready .layout>aside{display:none}
 .inext-trailers a{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #2d796f;background:#15322f;color:#73ead0;font-size:14px;font-weight:750}
 .inext-trailers a:hover{border-color:var(--accent);color:#ddfff8}
 @media(max-width:550px){.inext-cast-list{grid-template-columns:1fr}}
+
+/* On-site discovery filters, limited to publicly published Blogger posts. */
+.inext-catalog-tools{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:17px;margin:0 0 25px}
+.inext-catalog-tools h2{margin:0 0 10px;font-size:22px}
+.inext-catalog-tools p{margin:0 0 16px;font-size:13px;color:var(--sub)}
+.inext-catalog-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr));gap:10px}
+.inext-catalog-filters input,.inext-catalog-filters select{background:#0e1725;color:var(--ink);border:1px solid #3a4859;border-radius:9px;min-width:0;width:100%;padding:11px;font-size:14px}
+.inext-catalog-tools .inext-catalog-count{color:var(--accent);font-size:13px;margin:12px 0 0}
+.inext-catalog-empty{color:var(--sub);font-size:14px;margin:8px 0}
+.inext-catalog-tools[hidden],.inext-catalog-empty[hidden]{display:none!important}
+@media(max-width:760px){.inext-catalog-filters{grid-template-columns:1fr 1fr}.inext-catalog-filters input{grid-column:1/-1}}
+@media(max-width:450px){.inext-catalog-filters{grid-template-columns:1fr}.inext-catalog-filters input{grid-column:auto}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -120,6 +132,22 @@ body.inext-home-ready .layout>aside{display:none}
 <b:if cond='data:view.isHomepage'><section class='hero'><div class='shell'><small>Discover movies and television</small><h1>Find your next great watch.</h1><p>Explore movie and television information, ratings, genres and official trailers. An independent discovery guide, not a streaming service.</p></div></section></b:if>
 <main class='shell layout'><section><b:if cond='data:view.isHomepage'>
 <div class='inext-home-sections' id='inext-discovery'>
+  <section class='inext-catalog-tools' aria-label='Discover published titles'>
+    <h2>Explore the catalogue</h2>
+    <p>Search and filter the published guides currently loaded on this website. Draft posts are never included.</p>
+    <div class='inext-catalog-filters'>
+      <input aria-label='Search published titles' id='inext-catalog-query' placeholder='Search title...' type='search'/>
+      <select aria-label='Filter by type' id='inext-catalog-type'><option value='all'>All types</option><option value='movie'>Movies</option><option value='tv'>TV Shows</option></select>
+      <select aria-label='Filter by genre' id='inext-catalog-genre'><option value='all'>All genres</option></select>
+      <select aria-label='Filter by release year' id='inext-catalog-year'><option value='all'>All years</option></select>
+    </div>
+    <p aria-live='polite' class='inext-catalog-count' id='inext-catalog-count'>Loading available guides...</p>
+  </section>
+  <section aria-label='Filtered catalogue results' class='inext-home-section' id='inext-catalog-results' hidden='hidden'>
+    <div class='inext-home-head'><div><h2>Search results</h2><p>Matching published articles</p></div></div>
+    <div class='inext-poster-grid' id='inext-catalog-grid'></div>
+    <p class='inext-catalog-empty' id='inext-catalog-empty' hidden='hidden'>No matching guides are published yet.</p>
+  </section>
   <nav aria-label='Discover by genre' class='inext-genre-nav'>
     <a href='/search/label/Action'>Action</a><a href='/search/label/Drama'>Drama</a><a href='/search/label/Comedy'>Comedy</a><a href='/search/label/Thriller'>Thriller</a><a href='/search/label/Animation'>Animation</a><a href='/search/label/Documentary'>Documentary</a>
   </nav>
@@ -156,6 +184,7 @@ body.inext-home-ready .layout>aside{display:none}
     var posts=document.querySelectorAll('#main .post');
     if (!host) return;
     var feeds={latest:[],movie:[],tv:[],trending:[]};
+    var catalog=[];
     Array.prototype.forEach.call(posts,function(post){
       var titleAnchor=post.querySelector('.post-title a, h3.post-title a, h2.post-title a');
       if (!titleAnchor || !titleAnchor.getAttribute('href')) return;
@@ -166,7 +195,9 @@ body.inext-home-ready .layout>aside{display:none}
       var isMovie=labels.indexOf('movies')!==-1 || !!post.querySelector('.inext-media__eyebrow') && /movie information/i.test(post.querySelector('.inext-media__eyebrow').textContent);
       var poster=post.querySelector('.inext-media__poster img, .inext-movie img, .post-body img');
       var rating=post.querySelector('.inext-media__rating');
-      var record={href:titleAnchor.href,title:title,poster:poster?poster.getAttribute('src'):'',type:isTv?'TV show':isMovie?'Movie':'Article',rating:rating?(rating.textContent||'').trim():''};
+      var dateText=(post.querySelector('.inext-media__facts li')||{}).textContent||'';
+      var record={href:titleAnchor.href,title:title,poster:poster?poster.getAttribute('src'):'',type:isTv?'TV show':isMovie?'Movie':'Article',rating:rating?(rating.textContent||'').trim():'',labels:labels,year:/\b(19|20)\d{2}\b/.test(dateText)?(dateText.match(/\b(19|20)\d{2}\b/)||[])[0]:''};
+      catalog.push(record);
       feeds.latest.push(record);
       if(labels.indexOf('trending')!==-1) feeds.trending.push(record);
       if(isTv) feeds.tv.push(record);
@@ -188,6 +219,49 @@ body.inext-home-ready .layout>aside{display:none}
       if(item.rating){var meta=document.createElement('p');meta.className='inext-card__meta';meta.textContent=item.rating;details.appendChild(meta);}
       article.appendChild(cover);article.appendChild(details);return article;
     }
+    function renderCatalogue() {
+      var query=(document.getElementById('inext-catalog-query').value||'').toLowerCase().trim();
+      var type=document.getElementById('inext-catalog-type').value;
+      var genre=document.getElementById('inext-catalog-genre').value;
+      var year=document.getElementById('inext-catalog-year').value;
+      var hasFilter=!!query||type!=='all'||genre!=='all'||year!=='all';
+      var list=catalog.filter(function(x){
+        return (!query || x.title.toLowerCase().indexOf(query)!==-1) &&
+          (type==='all'||(type==='movie'?x.type==='Movie':x.type==='TV show')) &&
+          (genre==='all'||x.labels.indexOf(genre)!==-1) &&
+          (year==='all'||x.year===year);
+      });
+      var section=document.getElementById('inext-catalog-results');
+      var grid=document.getElementById('inext-catalog-grid');
+      var empty=document.getElementById('inext-catalog-empty');
+      section.hidden=!hasFilter;
+      while(grid.firstChild)grid.removeChild(grid.firstChild);
+      if(hasFilter)list.slice(0,100).forEach(function(x){grid.appendChild(linkCard(x));});
+      empty.hidden=!hasFilter||list.length>0;
+      document.getElementById('inext-catalog-count').textContent=catalog.length?
+        'Browsing '+catalog.length+' recently loaded published guides'+(hasFilter?' · '+list.length+' matching':''):
+        'No published guides are available to search yet.';
+    }
+    function setupCatalogue() {
+      var yearSelect=document.getElementById('inext-catalog-year');
+      var genreSelect=document.getElementById('inext-catalog-genre');
+      var years={},genres={},skip={'movies':1,'tv shows':1,'trending':1,'tmdb':1,'internal test':1};
+      catalog.forEach(function(x){
+        if(x.year)years[x.year]=true;
+        x.labels.forEach(function(label){if(label&&!skip[label])genres[label]=true;});
+      });
+      Object.keys(years).sort().reverse().forEach(function(y){
+        var opt=document.createElement('option');opt.value=y;opt.textContent=y;yearSelect.appendChild(opt);
+      });
+      Object.keys(genres).sort().forEach(function(g){
+        var opt=document.createElement('option');opt.value=g;opt.textContent=g.charAt(0).toUpperCase()+g.slice(1);genreSelect.appendChild(opt);
+      });
+      ['inext-catalog-query','inext-catalog-type','inext-catalog-genre','inext-catalog-year'].forEach(function(id){
+        var el=document.getElementById(id);
+        el.addEventListener(id==='inext-catalog-query'?'input':'change',renderCatalogue);
+      });
+      renderCatalogue();
+    }
     function fill(id,items,max){
       var node=document.getElementById(id);if(!node)return;
       items.slice(0,max).forEach(function(item){node.appendChild(linkCard(item));});
@@ -197,6 +271,7 @@ body.inext-home-ready .layout>aside{display:none}
     if(feeds.latest.length)document.getElementById('inext-latest-empty').style.display='none';
     if(!feeds.movie.length)document.getElementById('inext-movie-section').style.display='none';
     if(!feeds.tv.length)document.getElementById('inext-tv-section').style.display='none';
+    setupCatalogue();
     document.body.classList.add('inext-home-ready');
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDiscovery);
