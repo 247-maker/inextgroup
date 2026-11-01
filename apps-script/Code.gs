@@ -241,3 +241,35 @@ function detailExtrasHtml_(detail,type) {
 }
 function previewExpandedMovieDetailHtml() { return detailedPreview_('movie'); }
 function previewExpandedTvDetailHtml() { return detailedPreview_('tv'); }
+
+
+/**
+ * Read-only TMDB homepage catalog diagnostic.
+ * Tests trending/popular movie and TV endpoints without creating any Blogger posts
+ * and without exposing an API token to the public theme.
+ * Keep results in the execution log only until TMDB licensing is approved.
+ */
+function previewHomepageCatalog() {
+  const sections=[
+    {name:'Trending Movies',type:'movie',path:'trending/movie/week'},
+    {name:'Popular Movies',type:'movie',path:'movie/popular'},
+    {name:'Trending TV Shows',type:'tv',path:'trending/tv/week'},
+    {name:'Popular TV Shows',type:'tv',path:'tv/popular'}
+  ];
+  const output=[];
+  for(const section of sections) {
+    const data=tmdb_(section.path);
+    const valid=(data.results||[]).filter(m=>approved_(m,section.type));
+    const titles=valid.slice(0,5).map(m=>({
+      id:m.id,
+      title:section.type==='tv'?m.name:m.title,
+      releaseDate:section.type==='tv'?m.first_air_date:m.release_date,
+      hasPoster:!!m.poster_path
+    }));
+    output.push({section:section.name,eligibleCount:valid.length,sample:titles});
+  }
+  Logger.log('TMDB HOMEPAGE CATALOG PREVIEW (READ ONLY)');
+  Logger.log(JSON.stringify(output,null,2));
+  Logger.log('No Blogger content was created or published.');
+  return output;
+}
