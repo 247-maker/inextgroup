@@ -4,6 +4,8 @@
 <head>
 <meta charset='UTF-8'/>
 <meta content='width=device-width, initial-scale=1' name='viewport'/>
+<meta content='#090e18' name='theme-color'/>
+<b:if cond='data:view.isSingleItem'><link crossorigin='anonymous' href='https://image.tmdb.org' rel='preconnect'/></b:if>
 <b:include data='blog' name='all-head-content'/>
 <title><data:blog.pageTitle/></title>
 <b:skin><![CDATA[
@@ -136,6 +138,17 @@ body.static_page .post-body p{line-height:1.8}
 .inext-media__poster img{display:block;aspect-ratio:2/3}
 .inext-media__source{margin-top:18px}
 @media(max-width:620px){.inext-detail-nav{margin-bottom:14px}}
+
+/* Technical quality: visible keyboard navigation, stable media and narrow-screen resilience. */
+.inext-skip{position:absolute;z-index:100;top:-100px;left:14px;padding:11px 16px;background:#effffb;color:#082b25;border:2px solid #19bd9d;border-radius:8px;font-weight:800}
+.inext-skip:focus{top:12px}
+html{scroll-padding-top:92px}
+#inext-main-content{scroll-margin-top:90px}
+.inext-card__image{position:relative;min-height:0}
+.inext-card__image img{background:#132334}
+.inext-card__fallback{min-height:100%;aspect-ratio:2/3}
+.inext-media__poster img{width:100%;height:auto;aspect-ratio:2/3}
+@media(max-width:420px){.inext-home-head{flex-wrap:wrap}.inext-home-head a{white-space:normal}.inext-catalog-filters input,.inext-catalog-filters select{font-size:16px}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -155,6 +168,7 @@ body.static_page .post-body p{line-height:1.8}
 </b:if>
 </head>
 <body>
+<a class='inext-skip' href='#inext-main-content'>Skip to main content</a>
 <header class='topbar'><div class='shell topinner'>
 <a class='logo' expr:href='data:blog.homepageUrl'>INEXT<em>GROUP</em></a>
 <nav aria-label='Main navigation' class='nav'>
@@ -165,7 +179,7 @@ body.static_page .post-body p{line-height:1.8}
 <form action='/search' class='search' method='get' role='search'><input aria-label='Search titles' name='q' placeholder='Search movies and shows...' required='required' type='search'/><button type='submit'>Search</button></form>
 </div></header>
 <b:if cond='data:view.isHomepage'><section class='hero'><div class='shell'><small>Discover movies and television</small><h1>Find your next great watch.</h1><p>Explore movie and television information, ratings, genres and official trailers. An independent discovery guide, not a streaming service.</p></div></section></b:if>
-<main class='shell layout'><section><b:if cond='data:view.isHomepage'>
+<main class='shell layout' id='inext-main-content' tabindex='-1'><section><b:if cond='data:view.isHomepage'>
 <div class='inext-home-sections' id='inext-discovery'>
   <section class='inext-catalog-tools' aria-label='Discover published titles'>
     <h2>Explore the catalogue</h2>
@@ -242,7 +256,7 @@ body.static_page .post-body p{line-height:1.8}
       var article=document.createElement('article');article.className='inext-card';
       var cover=document.createElement('a');cover.className='inext-card__image';cover.href=item.href;cover.setAttribute('aria-label','Open '+item.title);
       if(item.poster){
-        var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.width=300;img.height=450;img.referrerPolicy='no-referrer-when-downgrade';img.src=item.poster;img.alt=item.title+' poster';cover.appendChild(img);
+        var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.width=300;img.height=450;img.referrerPolicy='no-referrer-when-downgrade';img.src=item.poster;img.alt=item.title+' poster';img.addEventListener('error',function(){img.remove();var fallback=document.createElement('span');fallback.className='inext-card__fallback';fallback.textContent=item.title;cover.appendChild(fallback);},{once:true});cover.appendChild(img);
       }else{
         var fallback=document.createElement('span');fallback.className='inext-card__fallback';fallback.textContent=item.title;cover.appendChild(fallback);
       }
