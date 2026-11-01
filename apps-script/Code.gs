@@ -1542,12 +1542,12 @@ function professionalDetailsSidebar_(d,type){
  * Runs via one installable Apps Script time trigger; not a hosted scraper.
  * Owner MUST explicitly install this task after granting commercial TMDB rights.
  * The requested 5000/day is a CONFIGURED CEILING, not achievable throughput
- * on this single hourly Apps Script trigger (theoretical max is 240/day at 10/run).
+ * on this per-minute Apps Script trigger without confirmed Blogger quota and capacity.
  * Actual quota, runtime, content validity, and Blogger inventory further limit output.
  * Uses bounded writes, and duplicate checks against reachable published/draft posts.
  */
 const INEXT_AUTO=Object.freeze({
- triggerHours:1,maxPerRun:10,maxPerDay:5000,
+ triggerMinutes:1,maxPerRun:10,maxPerDay:5000,
  sources:['trending/movie/week','trending/tv/week','movie/popular','tv/popular'],
  minimumOverview:180,minimumCast:2
 });
@@ -1556,10 +1556,11 @@ function inextAutoDate_(){return Utilities.formatDate(new Date(),'Asia/Dhaka','y
 function inextAutoPublishStatus(){
  const p=props_(),triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='inextScheduledTmdbSync');
  const output={installedTriggers:triggers.length,enabled:p.getProperty('INEXT_AUTO_ENABLED')==='yes',
-  mode:p.getProperty('INEXT_AUTO_MODE')||'draft',scheduleHours:INEXT_AUTO.triggerHours,
+  mode:p.getProperty('INEXT_AUTO_MODE')||'draft',scheduleMinutes:INEXT_AUTO.triggerMinutes,
   maxPerRun:INEXT_AUTO.maxPerRun,maxPerDay:INEXT_AUTO.maxPerDay,
-  upperBoundPerDayAtScheduledRate:24*INEXT_AUTO.maxPerRun,
-  warning:'5000 is a ceiling, NOT a publishing guarantee; actual limits depend on source candidates, API quotas, execution time and Blogger per-account limits.',
+  currentMinuteCount:Number(p.getProperty('INEXT_AUTO_MINUTE_COUNT')||0),
+  upperBoundPerHourAtScheduledRate:60*INEXT_AUTO.maxPerRun,
+  warning:'10/minute and 600/hour are theoretical ceilings; Blogger quotas, source candidates, Apps Script execution and 500-post inventory safety limit can prevent this throughput.',
   lastResult:p.getProperty('INEXT_AUTO_LAST_REPORT')||'Never run',
   lastDate:p.getProperty('INEXT_AUTO_LAST_DAY')||'',
   todayCount:Number(p.getProperty('INEXT_AUTO_DAY_COUNT')||0),
@@ -1577,9 +1578,9 @@ function installInextAutoPublisher(){
  required_('TMDB_READ_TOKEN');required_('BLOGGER_BLOG_ID');
  const old=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='inextScheduledTmdbSync');
  for(const t of old)ScriptApp.deleteTrigger(t);
- ScriptApp.newTrigger('inextScheduledTmdbSync').timeBased().everyHours(INEXT_AUTO.triggerHours).create();
+ ScriptApp.newTrigger('inextScheduledTmdbSync').timeBased().everyMinutes(INEXT_AUTO.triggerMinutes).create();
  const p=props_();p.setProperties({'INEXT_AUTO_ENABLED':'yes','INEXT_AUTO_MODE':'publish'});
- Logger.log('INEXTGROUP TMDB Auto Publisher installed. Every '+INEXT_AUTO.triggerHours+' hours; up to '+INEXT_AUTO.maxPerDay+' posts/day; no silent bulk backfill.');
+ Logger.log('INEXTGROUP TMDB Auto Publisher scheduled every '+INEXT_AUTO.triggerMinutes+' minute(s). Maximum '+INEXT_AUTO.maxPerRun+' posts per run, '+INEXT_AUTO.maxPerDay+' per day (subject to real API quotas and sources).');
  return inextAutoPublishStatus();
 }
 /** Disable future runs without touching existing published Blogger posts. */
@@ -1611,6 +1612,15 @@ function inextScheduledTmdbSync(){
   }
   let count=Number(p.getProperty('INEXT_AUTO_DAY_COUNT')||0);
   if(count>=INEXT_AUTO.maxPerDay){report.status='daily_limit';return report;}
+  // A time-driven trigger may start late or be manually invoked repeatedly.
+  // Enforce a hard ten-post budget for each Bangladesh wall-clock minute.
+  const minute=Utilities.formatDate(new Date(),'Asia/Dhaka','yyyy-MM-dd HH:mm');
+  if(p.getProperty('INEXT_AUTO_LAST_MINUTE')!==minute){
+    p.setProperties({'INEXT_AUTO_LAST_MINUTE':minute,'INEXT_AUTO_MINUTE_COUNT':'0'});
+  }
+  let minuteCount=Number(p.getProperty('INEXT_AUTO_MINUTE_COUNT')||0);
+  if(minuteCount>=INEXT_AUTO.maxPerRun){report.status='minute_limit';return report;}
+
   const id=required_('BLOGGER_BLOG_ID'),root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(id);
   const pub=bloggerListAudit_(root+'/posts?status=live&maxResults=100',500);
   const drafts=bloggerListAudit_(root+'/posts?status=draft&maxResults=100',500);
@@ -1649,7 +1659,7 @@ function inextScheduledTmdbSync(){
   }
   let created=0;
   for(const candidate of candidates){
-   if(created>=INEXT_AUTO.maxPerRun||count>=INEXT_AUTO.maxPerDay)break;
+   if(created>=INEXT_AUTO.maxPerRun||count>=INEXT_AUTO.maxPerDay||minuteCount>=INEXT_AUTO.maxPerRun)break;
    const type=candidate.type,m=candidate.record,key=type+':'+m.id;
    try{
     const d=tmdb_(type+'/'+m.id+'?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
@@ -1690,8 +1700,8 @@ function inextScheduledTmdbSync(){
     p.setProperty(inextAutoRecordKey_(type,m.id),String(post.id));
     existingTitles.add(postTitle.toLowerCase());existingKeys.add(key);
     if(confirmed.url)index.media[key]=confirmed;
-    count++;created++;
-    p.setProperty('INEXT_AUTO_DAY_COUNT',String(count));
+    count++;created++;minuteCount++;
+    p.setProperties({'INEXT_AUTO_DAY_COUNT':String(count),'INEXT_AUTO_MINUTE_COUNT':String(minuteCount)});
     report.created.push({type:type,tmdbId:m.id,title:postTitle,postId:post.id,url:confirmed.url||null,status:mode});
     Utilities.sleep(1350);
    }catch(err){
