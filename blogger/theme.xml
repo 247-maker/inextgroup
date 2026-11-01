@@ -427,4 +427,46 @@ html{scroll-padding-top:92px}
 //]]>
 </script>
 </b:if>
+
+<b:if cond='data:view.isSingleItem'>
+<script type='text/javascript'>
+//<![CDATA[
+(function(){
+ 'use strict';
+ function initPersonPage(){
+  var person=document.querySelector('#main .post-body .inext-person-profile[data-inext-person-id]');
+  if(!person)return;
+  var id=person.getAttribute('data-inext-person-id');
+  var heading=person.querySelector('h2');
+  if(!/^\d{1,14}$/.test(id||'')||!heading)return;
+  var name=(heading.textContent||'').replace(/\s+[—–-]\s+Biography.*$/i,'').trim();
+  if(!name)return;
+  var profileUrl='https://www.themoviedb.org/person/'+id;
+  var canonical=document.querySelector('link[rel="canonical"]');
+  var schema={'@context':'https://schema.org','@type':'Person',name:name,
+   mainEntityOfPage:(canonical&&canonical.href)||location.href.split('#')[0].split('?')[0],
+   sameAs:profileUrl};
+  var photo=person.querySelector('img');
+  if(photo&&/^https:\/\//i.test(photo.src))schema.image=photo.src;
+  var json=document.createElement('script');
+  json.type='application/ld+json';
+  json.textContent=JSON.stringify(schema).replace(/</g,'\\u003c');
+  document.head.appendChild(json);
+  var breadcrumb=document.createElement('nav');
+  breadcrumb.className='inext-detail-nav';
+  breadcrumb.setAttribute('aria-label','Breadcrumb');
+  var home=document.createElement('a');home.href='/';home.textContent='Home';
+  var people=document.createElement('a');people.href='/search/label/People';people.textContent='People';
+  var current=document.createElement('span');current.textContent=name;current.setAttribute('aria-current','page');
+  var arrow=function(){var x=document.createElement('span');x.textContent='›';x.setAttribute('aria-hidden','true');return x;};
+  breadcrumb.appendChild(home);breadcrumb.appendChild(arrow());breadcrumb.appendChild(people);
+  breadcrumb.appendChild(arrow());breadcrumb.appendChild(current);
+  person.parentNode.insertBefore(breadcrumb,person);
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initPersonPage);
+ else initPersonPage();
+})();
+//]]>
+</script>
+</b:if>
 </body></html>
