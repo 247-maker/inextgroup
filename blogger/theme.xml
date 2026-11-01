@@ -162,6 +162,44 @@ html{scroll-padding-top:92px}
 .inext-person-profile li{margin:7px 0}
 .inext-cast-links{clear:both}
 @media(max-width:600px){.inext-related-list{grid-template-columns:1fr}.inext-person-profile img{float:none;display:block;margin:10px 0 15px}}
+
+/* INEXTGROUP premium cinematic detail page – our own design, not a TMDB clone. */
+body.item-view .inext-pro-media{color:#edf5ff}
+.inext-pro-banner{background:#101927 center / cover no-repeat;border:1px solid #314455;border-radius:20px;overflow:hidden;margin-bottom:16px}
+.inext-pro-hero{display:grid;grid-template-columns:210px minmax(0,1fr);gap:30px;padding:30px;align-items:center;min-height:330px}
+.inext-pro-cover{width:100%;aspect-ratio:2/3;border-radius:14px;overflow:hidden;background:#142234;box-shadow:0 15px 35px rgba(0,0,0,.32)}
+.inext-pro-cover img{width:100%!important;height:100%!important;max-height:none!important;object-fit:cover!important;display:block;border-radius:0!important}
+.inext-pro-fallback{display:grid;place-items:center;height:100%;color:#abc3d5;text-align:center;padding:12px}
+.inext-pro-kicker{font-size:12px;letter-spacing:1.5px;font-weight:800;text-transform:uppercase;color:#70ead4;margin:0 0 8px}
+.inext-pro-summary h2{color:#fff;font-size:clamp(28px,4vw,43px)!important;line-height:1.12;margin:0 0 10px!important}
+.inext-pro-tagline{font-style:italic;color:#d7e3ee;line-height:1.6;margin:0 0 16px}
+.inext-pro-pills{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}
+.inext-pro-pills span{background:#22394a;border:1px solid #476273;border-radius:999px;padding:4px 11px;font-size:13px;color:#ebf5ff}
+.inext-pro-rating{font-size:15px;color:#ffdc81;font-weight:750}
+.inext-pro-genres{font-size:14px;color:#b8e9df}
+.inext-pro-jump{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:76px;z-index:3;background:#101927;border:1px solid #273d50;border-radius:12px;padding:11px 12px;margin:16px 0 24px}
+.inext-pro-jump a{padding:5px 11px;border-radius:8px;color:#e4eef6;font-size:13px;font-weight:700}
+.inext-pro-jump a:hover,.inext-pro-jump a:focus-visible{background:#1c4c48;color:#aaffec}
+.inext-pro-section{padding:26px 0;border-bottom:1px solid #2b3b4c;scroll-margin-top:170px}
+.inext-pro-section h3{font-size:clamp(21px,2.4vw,26px);margin:0 0 16px;color:#fff}
+.inext-pro-section>p{line-height:1.85;color:#d0dfeb;font-size:16px}
+.inext-pro-cast-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.inext-pro-person{background:#182637;border:1px solid #324455;border-radius:13px;overflow:hidden;min-width:0}
+.inext-pro-person img,.inext-pro-avatar{display:block;width:100%!important;height:auto!important;aspect-ratio:2/3;object-fit:cover!important;border-radius:0!important;background:linear-gradient(150deg,#244747,#14202b)}
+.inext-pro-avatar{display:grid;place-items:center;font-size:30px;color:#b5c4cf}
+.inext-pro-person>div:last-child{padding:10px 11px;line-height:1.35}
+.inext-pro-person-name{display:block;color:#f2f9ff;font-size:14px;font-weight:750;overflow-wrap:anywhere}
+.inext-pro-person a.inext-pro-person-name{color:#7aead3;text-decoration:underline;text-underline-offset:3px}
+.inext-pro-person small{display:block;color:#aebdcd;font-size:12px;margin-top:5px}
+.inext-pro-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}
+.inext-info-tile{min-width:0;border:1px solid #304457;background:#152335;padding:13px;border-radius:11px}
+.inext-info-tile dt{font-size:11px;text-transform:uppercase;letter-spacing:.65px;color:#9aafc3;font-weight:700}
+.inext-info-tile dd{margin:4px 0 0;color:#fff;font-size:14px;font-weight:650;overflow-wrap:anywhere}
+.inext-pro-trailer{display:inline-block;background:#133b3a;color:#8bf8dc;border:1px solid #2a7068;border-radius:10px;padding:10px 16px;text-decoration:none}
+.inext-pro-media .inext-related{scroll-margin-top:170px}
+@media(max-width:900px){.inext-pro-hero{grid-template-columns:170px 1fr;padding:22px}.inext-pro-cast-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.inext-pro-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.inext-pro-hero{grid-template-columns:1fr;padding:18px;gap:18px}.inext-pro-cover{max-width:185px}.inext-pro-jump{position:static}.inext-pro-cast-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.inext-pro-info-grid{grid-template-columns:1fr 1fr;gap:9px}.inext-info-tile{padding:10px}.inext-pro-section{padding:20px 0}}
+@media(max-width:390px){.inext-pro-info-grid{grid-template-columns:1fr}.inext-pro-person-name{font-size:13px}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -355,11 +393,11 @@ html{scroll-padding-top:92px}
     var entry=document.querySelector('#main .post-body .inext-media');
     if(!entry || entry.getAttribute('data-inext-seo-ready')==='true')return;
     var titleEl=entry.querySelector('.inext-media__title');
-    var typeEl=entry.querySelector('.inext-media__eyebrow');
-    var overview=entry.querySelector('.inext-media__section p');
+    var typeEl=entry.querySelector('.inext-media__eyebrow, .inext-pro-kicker');
+    var overview=entry.querySelector('#inext-overview p, .inext-media__section p');
     if(!titleEl||!typeEl||!overview)return;
     var typeText=(typeEl.textContent||'').trim().toLowerCase();
-    var mediaType=/^movie information$/.test(typeText)?'Movie':(/^tv show information$/.test(typeText)?'TVSeries':null);
+    var mediaType=/^movie(?: information| · \d{4})?$/.test(typeText)?'Movie':(/^(?:tv series|tv show information)(?: · \d{4})?$/.test(typeText)?'TVSeries':null);
     if(!mediaType)return; // Never mark fictional/test or generic content as a real title.
     var name=(titleEl.textContent||'').trim();
     var description=(overview.textContent||'').trim();
@@ -373,7 +411,7 @@ html{scroll-padding-top:92px}
         if(!isNaN(d.getTime()) && d.toISOString().slice(0,10)===value)date=value;
       }
     });
-    var image=entry.querySelector('.inext-media__poster img');
+    var image=entry.querySelector('.inext-pro-cover img, .inext-media__poster img');
     var imageUrl='';
     if(image){
       try{
@@ -391,7 +429,7 @@ html{scroll-padding-top:92px}
     }
     var canonical=document.querySelector('link[rel="canonical"]');
     var pageUrl=(canonical&&canonical.href)||window.location.href.split('#')[0].split('?')[0];
-    var genreEl=entry.querySelector('.inext-media__genres');
+    var genreEl=entry.querySelector('.inext-pro-genres, .inext-media__genres');
     var genre=[];
     if(genreEl){
       var raw=(genreEl.textContent||'').replace(/^Genres:\s*/i,'');
