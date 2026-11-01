@@ -370,6 +370,16 @@ function runFullSiteReadinessAudit() {
     if(issues.length)problems.push({title:title.slice(0,120),url:post.url||null,issues:issues});
     summaries.push({title:title.slice(0,90),labels:labels.slice(0,5),chars:chars});
   }
+  const pageWarnings=[];
+  for(const page of pages.items){
+    const body=String(page.content||'');
+    const text=stripHtmlAudit_(body);
+    const issues=[];
+    if(/\[(?:PUBLIC CONTACT EMAIL|YOUR PUBLIC CONTACT EMAIL|LEGAL OPERATOR|DATE|FINAL SITE DOMAIN|COPYRIGHT CONTACT EMAIL|LIST ACTUAL PROVIDERS|SPECIFY ACTUAL RETENTION PERIODS|ADD LOCAL PRIVACY RIGHTS|INSERT AGE|APPLICABLE JURISDICTION|COUNTRY|LEGAL ENTITY)/i.test(body))issues.push('unresolved policy placeholder');
+    if(text.length<150)issues.push('very short information page');
+    if(/privacy/i.test(page.title||'') && !/mrshakil\.me@yahoo\.com|privacy@inextgroup\.cloud/i.test(body))issues.push('verify privacy contact details');
+    if(issues.length)pageWarnings.push({title:page.title||'',url:page.url||'',issues:issues});
+  }
   const sitemap=seo.find(x=>x.name==='Post sitemap');
   const pageSitemap=seo.find(x=>x.name==='Page sitemap');
   const report={
@@ -382,6 +392,8 @@ function runFullSiteReadinessAudit() {
     postSitemapLocCount:sitemap?sitemap.locCount:null,
     pageSitemapLocCount:pageSitemap?pageSitemap.locCount:null,
     pages:pages.items.map(x=>({title:x.title||'',url:x.url||''})),
+    flaggedPageCount:pageWarnings.length,
+    flaggedPages:pageWarnings,
     flaggedPostCount:problems.length,
     flaggedPosts:problems.slice(0,40),
     samplePublishedPosts:summaries.slice(0,15),
