@@ -1346,6 +1346,8 @@ function finishInextgroupWebsiteLaunch(){
     actorProfiles:Object.keys(index.people).length,
     postUrls:index.posts.filter(p=>p.url).slice(0,30).map(p=>({title:p.title,url:p.url}))};
  }catch(err){outcome.errors.push({phase:'inventory',message:String(err.message||err)});}
+ try{outcome.quality=inextLaunchQualityAudit_();}
+ catch(err){outcome.errors.push({phase:'quality_audit',message:String(err.message||err)});}
  outcome.finishedAt=new Date().toISOString();
  Logger.log('INEXTGROUP SITE LAUNCH SUMMARY');
  Logger.log(JSON.stringify(outcome,null,2));
@@ -1367,4 +1369,46 @@ function inextInternalHref_(source){
  const path=match[2]||'/';
  if(path.indexOf('//')===0||/[<>"']/.test(path))throw new Error('Unsafe published URL path');
  return path;
+}
+
+
+/** Post-launch read-only quality assurance based on authoritative Blogger data. */
+function inextLaunchQualityAudit_(){
+ const idx=dbIndex_(),warnings=[],counts={movie:0,tv:0,people:0,guides:0,internalMediaLinks:0,profileLinks:0};
+ const homeNames={};
+ for(const p of idx.posts){
+  const h=String(p.content||''),labels=(p.labels||[]).map(x=>String(x).toLowerCase());
+  const isMedia=h.includes('inext-pro-media')||h.includes('inext-media__hero');
+  const isPeople=h.includes('inext-person-profile');
+  const isGuide=labels.includes('viewing guides');
+  const type=(h.match(/data-inext-media-type="(movie|tv)"/)||[])[1];
+  if(type==='movie')counts.movie++;
+  if(type==='tv')counts.tv++;
+  if(isPeople)counts.people++;
+  if(isGuide)counts.guides++;
+  const title=String(p.title||'').trim().toLowerCase();
+  if(homeNames[title])warnings.push({type:'duplicate_title',title:p.title,url:p.url||''});
+  homeNames[title]=true;
+  if(/Editorial review required before publishing|This is an unreviewed metadata draft/i.test(h))
+    warnings.push({type:'review_notice_live',title:p.title,url:p.url||''});
+  if(/INTERNAL BACKUP/i.test(p.title||'')||labels.includes('inext backup'))
+    warnings.push({type:'backup_accidentally_published',title:p.title,url:p.url||''});
+  if(isMedia && !/<img\b/.test(h))
+    warnings.push({type:'no_images',title:p.title,url:p.url||''});
+  if(isMedia && !h.includes('inext-pro-media'))
+    warnings.push({type:'legacy_movie_layout',title:p.title,url:p.url||''});
+  if(isMedia){
+    const internal=h.match(/href="\/(?:20\d{2}\/\d{2}\/[^"]+|search\/label\/[^"]+)"/g)||[];
+    counts.internalMediaLinks+=internal.length;
+  }
+  if(isPeople){
+    const internal=h.match(/href="\/20\d{2}\/\d{2}\/[^"]+"/g)||[];
+    counts.profileLinks+=internal.length;
+  }
+ }
+ const result={counts:counts,warnings:warnings.slice(0,50),
+   warningTotal:warnings.length,checkedPostCount:idx.posts.length,
+   note:'Checks published Blogger inventory only; does not certify live appearance, AdSense, permissions, DNS, indexing, or user experience.'};
+ Logger.log('INEXTGROUP QUALITY AUDIT '+JSON.stringify(result,null,2));
+ return result;
 }
