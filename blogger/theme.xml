@@ -322,6 +322,17 @@ body.item-view .comment-form-container{display:none!important}
  body.item-view .inext-video-cards{grid-template-columns:1fr}
  body.item-view .inext-pro-banner{min-height:auto}
 }
+
+/* Current-season episodes follow the official series information structure. */
+.inext-episode-list{display:grid;gap:11px;margin:18px 0 0}
+.inext-episode-card{display:grid;grid-template-columns:135px minmax(0,1fr);gap:12px;align-items:start;border-top:1px solid #375064;padding:12px 0;color:#d5e5f0}
+.inext-episode-card img{width:135px!important;height:78px!important;object-fit:cover;border-radius:9px!important}
+.inext-episode-card strong{display:block;font-size:14px;color:#fff;margin-bottom:4px}
+.inext-episode-card small{display:block;font-size:12px;color:#91afc5;margin-bottom:6px}
+.inext-episode-card p{font-size:13px;line-height:1.5;margin:0;color:#c2d4e2}
+body.item-view .inext-seasons-grid{grid-template-columns:1fr}
+body.item-view .inext-season-card summary img{width:80px!important;height:114px!important;object-fit:cover}
+@media(max-width:470px){.inext-episode-card{grid-template-columns:1fr}.inext-episode-card img{width:100%!important;height:auto!important;aspect-ratio:16/9}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
