@@ -705,7 +705,7 @@ function dbRelated_(key,index){
  const label=type==='movie'?'Movies':'TV Shows',category=type==='movie'?'Movies':'TV%20Shows';
  let h='<section class="inext-media__section inext-related"><h3>More '+label+' on INEXTGROUP</h3>';
  if(other.length){h+='<ul class="inext-related-list">';
-  other.forEach(k=>{const p=index.media[k];h+='<li><a href="'+esc_(p.url)+'">'+esc_(p.title)+'</a></li>';});
+  other.forEach(k=>{const p=index.media[k];h+='<li><a href="'+esc_(inextInternalHref_(p.url))+'">'+esc_(p.title)+'</a></li>';});
   h+='</ul>';
  }else h+='<p>More movie and TV profiles will appear as our database grows.</p>';
  return h+'<p><a href="/search/label/'+category+'">Browse '+label+'</a></p></section>';
@@ -728,13 +728,13 @@ function dbEnhanceHtml_(content,detail,key,index){
   const first=clean.match(/<strong>([\s\S]*?)<\/strong>/i);
   if(!first)return full;
   if(actor){internalCast++;
-   return '<li'+attrs+'>'+clean.replace(first[0],'<strong><a href="'+esc_(actor)+'">'+first[1]+'</a></strong>')+'</li>';
+   return '<li'+attrs+'>'+clean.replace(first[0],'<strong><a href="'+esc_(inextInternalHref_(actor))+'">'+first[1]+'</a></strong>')+'</li>';
   }
   return '<li'+attrs+'>'+clean+'</li>';
  });
  // Convert legacy TMDB cast hyperlinks to verified internal links or plain text.
  html=html.replace(/<a\b[^>]*href=["']https:\/\/(?:www\.)?themoviedb\.org\/person\/(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi,
-   function(_all,id,label){return index.people[id]?'<a href="'+esc_(index.people[id])+'">'+label+'</a>':label;});
+   function(_all,id,label){return index.people[id]?'<a href="'+esc_(inextInternalHref_(index.people[id]))+'">'+label+'</a>':label;});
  // Older posts had external TMDB actor links but no person-id attributes.
  // Rebuild their original cast list conservatively when the names match.
  cast.forEach(p=>{
@@ -743,14 +743,14 @@ function dbEnhanceHtml_(content,detail,key,index){
   const encoded=esc_(p.name);
   const existing='<strong>'+encoded+'</strong>';
   if(!actor||!html.includes(existing))return;
-  html=html.replace(existing,'<strong><a href="'+esc_(actor)+'">'+encoded+'</a></strong>');
+  html=html.replace(existing,'<strong><a href="'+esc_(inextInternalHref_(actor))+'">'+encoded+'</a></strong>');
  });
  const related='<!--INEXT_RELATED_START-->'+dbRelated_(key,index)+'<!--INEXT_RELATED_END-->';
  let profiles='<section class="inext-media__section inext-cast-links"><h3>Cast and profiles</h3><ul class="inext-cast-list">';
  cast.slice(0,10).forEach(p=>{
   if(!p||!p.name)return;
   const actor=index.people[String(p.id)],display=esc_(p.name);
-  profiles+='<li>'+(actor?'<a href="'+esc_(actor)+'">'+display+'</a>':'<span>'+display+'</span>')+
+  profiles+='<li>'+(actor?'<a href="'+esc_(inextInternalHref_(actor))+'">'+display+'</a>':'<span>'+display+'</span>')+
    (p.character?'<span>as '+esc_(p.character)+'</span>':'')+'</li>';
  });
  profiles+='</ul><p>Actor names become clickable when their INEXTGROUP profiles are published.</p></section>';
@@ -825,7 +825,7 @@ function preparePersonProfileDrafts(){
       '<h3>Biography</h3><p>'+esc_(p.biography)+'</p><h3>Selected Filmography</h3><ul>';
     for(const f of ((p.combined_credits&&p.combined_credits.cast)||[]).filter(f=>f.media_type==='movie'||f.media_type==='tv').slice(0,12)){
      const internal=x.media[f.media_type+':'+f.id],name=esc_(f.title||f.name||'Untitled');
-     body+='<li>'+(internal?'<a href="'+esc_(internal.url)+'">'+name+'</a>':name)+'</li>';
+     body+='<li>'+(internal?'<a href="'+esc_(inextInternalHref_(internal.url))+'">'+name+'</a>':name)+'</li>';
     }
     body+='</ul><p>Source: <a href="https://www.themoviedb.org/person/'+p.id+'">TMDB profile</a></p>'+
       '<p><strong>Editorial review required before publishing:</strong> Verify bio and image rights, add original context, then remove this message.</p></article>';
@@ -889,7 +889,7 @@ function professionalMediaHtml_(d,type,index) {
    html+='<div class="inext-pro-person" data-inext-person-id="'+e(p.id||'')+'">';
    if(photo)html+='<img src="'+e(photo)+'" alt="'+e(p.name)+'" loading="lazy" width="92" height="138"/>';
    else html+='<div class="inext-pro-avatar" aria-hidden="true">●</div>';
-   html+='<div>'+(internal?'<a href="'+e(internal)+'" class="inext-pro-person-name">'+e(p.name)+'</a>':'<strong class="inext-pro-person-name">'+e(p.name)+'</strong>')+
+   html+='<div>'+(internal?'<a href="'+e(inextInternalHref_(internal))+'" class="inext-pro-person-name">'+e(p.name)+'</a>':'<strong class="inext-pro-person-name">'+e(p.name)+'</strong>')+
     (p.character?'<small>as '+e(p.character)+'</small>':'')+'</div></div>';
  }
  html+='</div></section>';
@@ -980,7 +980,7 @@ function professionalSupplementHtml_(d,type,index){
   html+='<section class="inext-pro-section" id="inext-crew"><h3>Key Crew</h3><div class="inext-pro-crew-grid">';
   selected.slice(0,24).forEach(x=>{
    const inside=index.people[String(x.person.id)];
-   html+='<div class="inext-pro-crew-member">'+(inside?'<a href="'+e(inside)+'">'+e(x.person.name)+'</a>':'<strong>'+e(x.person.name)+'</strong>')+
+   html+='<div class="inext-pro-crew-member">'+(inside?'<a href="'+e(inextInternalHref_(inside))+'">'+e(x.person.name)+'</a>':'<strong>'+e(x.person.name)+'</strong>')+
     '<small>'+e(x.role)+'</small></div>';
   });
   html+='</div></section>';
@@ -1043,7 +1043,7 @@ function professionalSupplementHtml_(d,type,index){
  }
  if(links.length){
   html+='<section class="inext-pro-section" id="inext-recommendations"><h3>You May Also Like on INEXTGROUP</h3><ul class="inext-related-list">';
-  links.forEach(x=>{html+='<li><a href="'+e(x.url)+'">'+e(x.title)+'</a></li>';});
+  links.forEach(x=>{html+='<li><a href="'+e(inextInternalHref_(x.url))+'">'+e(x.title)+'</a></li>';});
   html+='</ul></section>';
  }
  return html;
@@ -1220,7 +1220,7 @@ function launchInextgroupMovieDatabase() {
           '<h3>Selected Movies and TV Shows</h3><ul>';
         for(const c of credits){
           const known=idx.media[c.media_type+':'+c.id],name=esc_(c.title||c.name||'Untitled');
-          body+='<li>'+(known?'<a href="'+esc_(known.url)+'">'+name+'</a>':name)+
+          body+='<li>'+(known?'<a href="'+esc_(inextInternalHref_(known.url))+'">'+name+'</a>':name)+
             (c.character?' <small>as '+esc_(c.character)+'</small>':'')+'</li>';
         }
         body+='</ul><p class="inext-media__source">Biography and credits sourced from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></article>';
@@ -1350,4 +1350,21 @@ function finishInextgroupWebsiteLaunch(){
  Logger.log('INEXTGROUP SITE LAUNCH SUMMARY');
  Logger.log(JSON.stringify(outcome,null,2));
  return outcome;
+}
+
+/**
+ * Produce a safe same-site relative link from an existing Blogger or future
+ * inextgroup.cloud post URL. Internal hrefs survive custom-domain migration.
+ * A foreign host cannot be silently converted into an on-site link.
+ */
+function inextInternalHref_(source){
+ const raw=String(source||'').trim();
+ const match=raw.match(/^https?:\/\/([^\/?#]+)(\/[^?#]*)?(?:[?#].*)?$/i);
+ if(!match)throw new Error('Not an absolute published Blogger URL: '+raw.slice(0,100));
+ const host=match[1].toLowerCase();
+ if(host!=='inextcloud.blogspot.com'&&host!=='inextgroup.cloud'&&host!=='www.inextgroup.cloud')
+   throw new Error('External host rejected for internal link: '+host);
+ const path=match[2]||'/';
+ if(path.indexOf('//')===0||/[<>"']/.test(path))throw new Error('Unsafe published URL path');
+ return path;
 }
