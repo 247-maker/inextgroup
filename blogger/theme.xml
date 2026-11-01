@@ -222,6 +222,15 @@ body.item-view .inext-pro-media{color:#edf5ff}
 .inext-pro-jump a{white-space:nowrap}
 @media(max-width:720px){.inext-pro-crew-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inext-pro-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.inext-pro-release-list{grid-template-columns:1fr}}
 @media(max-width:440px){.inext-pro-crew-grid,.inext-pro-simple-list{grid-template-columns:1fr}.inext-pro-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.inext-pro-gallery img{height:115px!important}}
+
+/* Override Blogger single-post global image rules for rich movie gallery/cards. */
+body.item-view .blog-posts .post-body .inext-pro-cover img{width:100%!important;height:100%!important;max-height:none!important;object-fit:cover!important}
+body.item-view .blog-posts .post-body .inext-pro-person img{width:100%!important;height:auto!important;aspect-ratio:2/3;max-height:none!important;object-fit:cover!important}
+body.item-view .blog-posts .post-body .inext-pro-gallery img{width:100%!important;height:175px!important;max-height:175px!important;object-fit:cover!important}
+body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!important;max-width:100%;height:auto!important;object-fit:cover!important}
+.inext-verified{background:#102529;border:1px solid #2b5754;border-radius:15px;padding:22px;margin:14px 0}
+.inext-verified a{color:#7aead3;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:440px){body.item-view .blog-posts .post-body .inext-pro-gallery img{height:115px!important;max-height:115px!important}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
