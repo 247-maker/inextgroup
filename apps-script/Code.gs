@@ -933,36 +933,30 @@ function previewDogStarsProfessionalUpgrade(){
  Logger.log(JSON.stringify(result,null,2));return result;
 }
 function applyDogStarsProfessionalUpgrade(){
- if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('TMDB rights flag must be yes.');
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('Commercial rights gate not enabled.');
  const lock=LockService.getScriptLock();
- if(!lock.tryLock(5000))throw new Error('A movie edit is in progress.');
+ if(!lock.tryLock(5000))throw new Error('Movie update already running.');
  try{
-  const idx=dbIndex_(),p=idx.posts.find(x=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(x.url||''));
-  if(!p)throw new Error('Published The Dog Stars post was not found. Do not modify the wrong post.');
-  const old=String(p.content||'');
-  const key='INEXT_BACKUP_DOGSTARS_1384216';
-  const props=props_();
-  if(!props.getProperty(key)){
-    if(old.length>8000)throw new Error('Original body too large for safe Script Properties backup. Save a manual backup before editing.');
-    props.setProperty(key,old);
-    if(props.getProperty(key)!==old)throw new Error('Original post backup failed. No changes made.');
-  }
-  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
-  if(d.id!==1384216)throw new Error('Incorrect TMDB record returned.');
-  const replacement=professionalMediaHtml_(d,'movie',idx);
-  const url=idx.root+'/posts/'+encodeURIComponent(p.id);
-  const response=UrlFetchApp.fetch(url,{method:'put',contentType:'application/json',
+  const idx=dbIndex_(),post=idx.posts.find(p=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(p.url||''));
+  if(!post||!post.id||!post.url)throw new Error('Exact published The Dog Stars post not found.');
+  const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
+  if(detail.id!==1384216)throw new Error('TMDB ID mismatch');
+  const updatedHtml=professionalMediaHtml_(detail,'movie',idx);
+  if(updatedHtml.length<1300)throw new Error('Unexpected article HTML');
+  const backupId=inextBackupPublishedPost_(idx,post);
+  const response=UrlFetchApp.fetch(idx.root+'/posts/'+encodeURIComponent(post.id),{
+    method:'put',contentType:'application/json',
     headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
-    payload:JSON.stringify({kind:'blogger#post',id:p.id,title:p.title,content:replacement,labels:p.labels||[]}),
-    muteHttpExceptions:true,followRedirects:false});
-  if(response.getResponseCode()!==200)throw new Error('Blogger update HTTP '+response.getResponseCode()+': '+response.getContentText().slice(0,200));
+    payload:JSON.stringify({kind:'blogger#post',id:post.id,title:post.title,content:updatedHtml,labels:post.labels||[]}),
+    muteHttpExceptions:true,followRedirects:false
+  });
+  if(response.getResponseCode()!==200)throw new Error('Blogger update HTTP '+response.getResponseCode());
   const updated=JSON.parse(response.getContentText());
-  const result={status:'updated',title:p.title,url:updated.url||p.url,backupProperty:key,
-    notice:'Old HTML backed up in Script Properties. Review live formatting, editorial text, and image rights.'};
+  const result={status:'updated',url:updated.url||post.url,backupDraftId:backupId,
+    note:'Previous HTML saved as private Blogger draft. Original editorial additions may need restoring from the backup.'};
   Logger.log(JSON.stringify(result,null,2));return result;
  }finally{lock.releaseLock();}
 }
-
 
 /**
  * Supplemental TMDB detail modules: media, full crew, titles, regional release
@@ -990,7 +984,7 @@ function professionalSupplementHtml_(d,type,index){
   });
   html+='</div></section>';
  }
- const titles=(d.alternative_titles&&d.alternative_titles.titles||[]);
+ const titles=(d.alternative_titles&&(d.alternative_titles.titles||d.alternative_titles.results)||[]);
  if(titles.length){
   const unique={},alternative=[];
   for(const t of titles){
@@ -1096,9 +1090,7 @@ function upgradePublishedMovieDetailsBatch(){
   if(!lock.tryLock(5000))throw new Error('Already upgrading movie details.');
   try{
     const idx=dbIndex_();
-    const keys=Object.keys(idx.media).sort((a,b)=>
-      (a==='movie:1384216'?-1:b==='movie:1384216'?1:0)-
-      (b==='movie:1384216'?-1:a==='movie:1384216'?1:0));
+    const keys=Object.keys(idx.media).sort((a,b)=>a==='movie:1384216'?-1:b==='movie:1384216'?1:0);
     const result=[];
     const query='?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null';
     for(const key of keys.slice(0,6)){
