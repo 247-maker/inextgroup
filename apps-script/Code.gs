@@ -689,7 +689,10 @@ function dbIndex_(){
   const person=h.match(/data-inext-person-id=["'](\d+)["']/i);
   if(person&&p.url)people[person[1]]=p.url;
   const m=h.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i);
-  if(m&&p.url&&h.indexOf('inext-media__hero')>=0)media[m[1]+':'+m[2]]=p;
+  if(m&&p.url&&(h.indexOf('inext-media__hero')>=0||h.indexOf('inext-pro-media')>=0))media[m[1]+':'+m[2]]=p;
+  // Newer rich posts have an explicit TMDB ID/type, independent of attribution links.
+  const rich=h.match(/data-inext-media-id=["'](\d+)["'][^>]*data-inext-media-type=["'](movie|tv)["']/i);
+  if(rich&&p.url)media[rich[2].toLowerCase()+':'+rich[1]]=p;
  });
  return {root:root,people:people,media:media,posts:pub.items};
 }
@@ -1531,4 +1534,170 @@ function professionalDetailsSidebar_(d,type){
  if(networks.length)html+='<h4>Networks</h4><p class="inext-network-list">'+networks.map(n=>e(n.name)).join(' · ')+'</p>';
  html+='<p class="inext-sidebar-note">Information is provided for discovery. Check current regional release and availability with official distributors.</p>';
  return html+'</aside>';
+}
+
+
+/**
+ * Ongoing INEXTGROUP TMDB -> Blogger publishing.
+ * Runs via one installable Apps Script time trigger; not a hosted scraper.
+ * Owner MUST explicitly install this task after granting commercial TMDB rights.
+ * Uses fixed daily limits, no fake film metadata, and duplicate checks against
+ * every published post + private draft reachable through Blogger API.
+ */
+const INEXT_AUTO=Object.freeze({
+ triggerHours:6,maxPerRun:2,maxPerDay:6,
+ sources:['trending/movie/week','trending/tv/week','movie/popular','tv/popular'],
+ minimumOverview:180,minimumCast:2
+});
+function inextAutoRecordKey_(type,id){return 'INEXT_AUTO_'+type+'_'+id;}
+function inextAutoDate_(){return Utilities.formatDate(new Date(),'Asia/Dhaka','yyyy-MM-dd');}
+function inextAutoPublishStatus(){
+ const p=props_(),triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='inextScheduledTmdbSync');
+ const output={installedTriggers:triggers.length,enabled:p.getProperty('INEXT_AUTO_ENABLED')==='yes',
+  mode:p.getProperty('INEXT_AUTO_MODE')||'draft',scheduleHours:INEXT_AUTO.triggerHours,
+  maxPerRun:INEXT_AUTO.maxPerRun,maxPerDay:INEXT_AUTO.maxPerDay,
+  lastResult:p.getProperty('INEXT_AUTO_LAST_REPORT')||'Never run',
+  lastDate:p.getProperty('INEXT_AUTO_LAST_DAY')||'',
+  todayCount:Number(p.getProperty('INEXT_AUTO_DAY_COUNT')||0),
+  licenceGate:p.getProperty('TMDB_RIGHTS_REVIEWED')==='yes'};
+ Logger.log(JSON.stringify(output,null,2));return output;
+}
+/**
+ * Install once from Apps Script editor; does not silently schedule on save.
+ * Explicitly enables publish mode because site owner requested real articles.
+ * Calling it twice replaces an existing trigger to prevent duplicates.
+ */
+function installInextAutoPublisher(){
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')
+  throw new Error('Confirm your commercial TMDB authorization includes API metadata and images before enabling publishing.');
+ required_('TMDB_READ_TOKEN');required_('BLOGGER_BLOG_ID');
+ const old=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='inextScheduledTmdbSync');
+ for(const t of old)ScriptApp.deleteTrigger(t);
+ ScriptApp.newTrigger('inextScheduledTmdbSync').timeBased().everyHours(INEXT_AUTO.triggerHours).create();
+ const p=props_();p.setProperties({'INEXT_AUTO_ENABLED':'yes','INEXT_AUTO_MODE':'publish'});
+ Logger.log('INEXTGROUP TMDB Auto Publisher installed. Every '+INEXT_AUTO.triggerHours+' hours; up to '+INEXT_AUTO.maxPerDay+' posts/day; no silent bulk backfill.');
+ return inextAutoPublishStatus();
+}
+/** Disable future runs without touching existing published Blogger posts. */
+function stopInextAutoPublisher(){
+ for(const t of ScriptApp.getProjectTriggers()){
+  if(t.getHandlerFunction()==='inextScheduledTmdbSync')ScriptApp.deleteTrigger(t);
+ }
+ props_().setProperty('INEXT_AUTO_ENABLED','no');
+ Logger.log('TMDB scheduled publishing disabled. Published posts remain unchanged.');
+ return inextAutoPublishStatus();
+}
+/**
+ * Scheduled entry point. May also be run manually for a single bounded batch.
+ * New posts appear publicly only in publish mode. No auto-generated actor
+ * profiles, and no external cast-link redirects are emitted.
+ */
+function inextScheduledTmdbSync(){
+ const p=props_();
+ if(p.getProperty('INEXT_AUTO_ENABLED')!=='yes')return {status:'disabled'};
+ if(p.getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('TMDB rights setting not confirmed.');
+ const mode=p.getProperty('INEXT_AUTO_MODE')==='publish'?'publish':'draft';
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(1000))return {status:'skipped_concurrent'};
+ const report={date:inextAutoDate_(),mode:mode,created:[],skipped:[],errors:[]};
+ try{
+  const day=report.date;
+  if(p.getProperty('INEXT_AUTO_LAST_DAY')!==day){
+   p.setProperties({'INEXT_AUTO_LAST_DAY':day,'INEXT_AUTO_DAY_COUNT':'0'});
+  }
+  let count=Number(p.getProperty('INEXT_AUTO_DAY_COUNT')||0);
+  if(count>=INEXT_AUTO.maxPerDay){report.status='daily_limit';return report;}
+  const id=required_('BLOGGER_BLOG_ID'),root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(id);
+  const pub=bloggerListAudit_(root+'/posts?status=live&maxResults=100',500);
+  const drafts=bloggerListAudit_(root+'/posts?status=draft&maxResults=100',500);
+  if(pub.truncated||drafts.truncated)throw new Error('Blog inventory exceeded safe duplicate-check range. Pause auto publishing and implement pagination.');
+  const existingKeys=new Set(),existingTitles=new Set();
+  for(const post of pub.items.concat(drafts.items)){
+   existingTitles.add(String(post.title||'').trim().toLowerCase());
+   const html=String(post.content||'');
+   const rich=html.match(/data-inext-media-id=["'](\d+)["'][^>]*data-inext-media-type=["'](movie|tv)["']/i);
+   if(rich)existingKeys.add(rich[2].toLowerCase()+':'+rich[1]);
+   const source=html.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i);
+   if(source)existingKeys.add(source[1].toLowerCase()+':'+source[2]);
+  }
+  const index={root:root,media:{},people:{},posts:pub.items};
+  for(const post of pub.items){
+   const h=String(post.content||'');
+   const match=h.match(/data-inext-media-id=["'](\d+)["'][^>]*data-inext-media-type=["'](movie|tv)["']/i);
+   if(match&&post.url)index.media[match[2].toLowerCase()+':'+match[1]]=post;
+   const person=h.match(/data-inext-person-id=["'](\d+)["']/);
+   if(person&&post.url)index.people[person[1]]=post.url;
+  }
+  const candidates=[],seen=new Set();
+  for(const source of INEXT_AUTO.sources){
+   let data;
+   try{data=tmdb_(source);}catch(err){report.errors.push({source:source,error:String(err.message||err)});continue;}
+   const type=source.indexOf('/tv/')>=0||source.indexOf('tv/')===0?'tv':'movie';
+   for(const m of (data.results||[]).slice(0,20)){
+    if(!Number.isSafeInteger(m.id))continue;
+    const key=type+':'+m.id;
+    if(seen.has(key))continue;
+    seen.add(key);
+    if(existingKeys.has(key)||p.getProperty(inextAutoRecordKey_(type,m.id)))continue;
+    if(!approved_(m,type)||String(m.overview||'').length<INEXT_AUTO.minimumOverview)continue;
+    candidates.push({type:type,record:m});
+   }
+  }
+  let created=0;
+  for(const candidate of candidates){
+   if(created>=INEXT_AUTO.maxPerRun||count>=INEXT_AUTO.maxPerDay)break;
+   const type=candidate.type,m=candidate.record,key=type+':'+m.id;
+   try{
+    const d=tmdb_(type+'/'+m.id+'?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
+    const title=String(type==='tv'?d.name:d.title||'').trim();
+    const date=String(type==='tv'?d.first_air_date:d.release_date||'');
+    if(!title||Number(d.id)!==m.id||!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+    if(String(d.overview||'').trim().length<INEXT_AUTO.minimumOverview)continue;
+    if(((d.credits||{}).cast||[]).filter(p=>p.name).length<INEXT_AUTO.minimumCast)continue;
+    if(!/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(d.poster_path||''))continue;
+    const postTitle=title+' ('+date.slice(0,4)+') — '+(type==='tv'?'TV show':'Movie')+' details';
+    if(existingTitles.has(postTitle.toLowerCase())){report.skipped.push({key:key,reason:'title_exists'});continue;}
+    const content=professionalMediaHtml_(d,type,index);
+    if(!content.includes('data-inext-media-id="'+m.id+'"')||content.length<1500)
+      throw new Error('Unexpected generated article HTML');
+    // Draft mode is supported for a more conservative publication workflow.
+    const labels=[type==='tv'?'TV Shows':'Movies','TMDB','Automated Metadata']
+      .concat((d.genres||[]).map(x=>x.name).filter(Boolean).slice(0,4));
+    const body={kind:'blogger#post',title:postTitle,content:content,labels:labels};
+    const target=root+'/posts'+(mode==='draft'?'?isDraft=true':'');
+    // Never retry a POST that may have succeeded remotely without a response.
+    // If interrupted, next run checks live/draft inventories before posting.
+    const response=UrlFetchApp.fetch(target,{method:'post',contentType:'application/json',
+      headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+      payload:JSON.stringify(body),muteHttpExceptions:true,followRedirects:false});
+    const status=response.getResponseCode();
+    if(status!==200&&status!==201){
+      report.errors.push({key:key,status:status,detail:response.getContentText().slice(0,140)});
+      if(status===429||status>=500)break;
+      continue;
+    }
+    const post=JSON.parse(response.getContentText());
+    if(!post.id)throw new Error('Blogger created post but did not return an ID for '+key);
+    p.setProperty(inextAutoRecordKey_(type,m.id),String(post.id));
+    existingTitles.add(postTitle.toLowerCase());existingKeys.add(key);
+    if(post.url)index.media[key]=post;
+    count++;created++;
+    p.setProperty('INEXT_AUTO_DAY_COUNT',String(count));
+    report.created.push({type:type,tmdbId:m.id,title:postTitle,postId:post.id,url:post.url||null,status:mode});
+    Utilities.sleep(1350);
+   }catch(err){
+    report.errors.push({key:key,error:String(err.message||err).slice(0,200)});
+    if(/quota|429/i.test(String(err.message||err)))break;
+   }
+  }
+  report.status=report.errors.length?'partial':'completed';
+  return report;
+ }finally{
+  p.setProperty('INEXT_AUTO_LAST_REPORT',JSON.stringify({
+   at:new Date().toISOString(),status:report.status||'error',published:report.created.length,
+   errors:report.errors.length
+  }));
+  Logger.log('INEXT AUTO TMDB SYNC '+JSON.stringify(report,null,2));
+  lock.releaseLock();
+ }
 }
