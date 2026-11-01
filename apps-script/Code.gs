@@ -498,3 +498,122 @@ function originalEditorialGuides_(){
     return {title:a.title,slug:a.slug,labels:a.labels,html:html};
   });
 }
+
+
+/**
+ * Production-oriented TMDB ingestion tools. All preview functions READ ONLY.
+ * No public API keys, browser endpoints or Apps Script public Web App deployment.
+ * Real TMDB drafts may ONLY be created once commercial rights are independently
+ * reviewed and TMDB_RIGHTS_REVIEWED has been explicitly set to yes by the owner.
+ * Even after approval, NOTHING in this module publishes real TMDB content.
+ */
+const TMDB_CATALOG_SOURCES=Object.freeze([
+  {section:'Trending Movies',type:'movie',path:'trending/movie/week'},
+  {section:'Popular Movies',type:'movie',path:'movie/popular'},
+  {section:'Trending TV Shows',type:'tv',path:'trending/tv/week'},
+  {section:'Popular TV Shows',type:'tv',path:'tv/popular'}
+]);
+
+/** Private preview of the next catalog batch. No Blogger writes. */
+function prepareTmdbCataloguePreview() {
+  const list=tmdbCatalogCandidates_(3);
+  const report=list.map((entry,i)=>({
+    sequence:i+1,type:entry.type,id:entry.data.id,
+    title:String(entry.data[entry.type==='movie'?'title':'name']),
+    releaseDate:entry.type==='movie'?entry.data.release_date:entry.data.first_air_date,
+    sections:entry.sections,
+    hasPoster:!!entry.data.poster_path,
+    overviewLength:String(entry.data.overview||'').length
+  }));
+  Logger.log('TMDB CATALOG PREVIEW — READ ONLY (no site updates)');
+  Logger.log(JSON.stringify(report,null,2));
+  return report;
+}
+function tmdbCatalogCandidates_(perTypeLimit) {
+  const byType={movie:0,tv:0},seen={},output=[];
+  for(const source of TMDB_CATALOG_SOURCES) {
+    const data=tmdb_(source.path);
+    for(const media of data.results||[]) {
+      if(!approved_(media,source.type))continue;
+      const key=source.type+':'+media.id;
+      if(seen[key]){
+        seen[key].sections.push(source.section);
+        continue;
+      }
+      if(byType[source.type]>=perTypeLimit)continue;
+      const item={type:source.type,data:media,sections:[source.section]};
+      seen[key]=item;output.push(item);byType[source.type]++;
+    }
+  }
+  return output;
+}
+
+/**
+ * Owner-gated TMDB draft pipeline. Never publishes or schedules posts.
+ * Imported draft HTML shows source metadata and a conspicuous editorial
+ * review checklist; it must be enriched and approved manually before publishing.
+ */
+function prepareLicensedTmdbDraftBatch() {
+  if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes') {
+    throw new Error('Commercial TMDB licensing and artwork rights not confirmed. Set TMDB_RIGHTS_REVIEWED=yes ONLY after verifying actual authorization.');
+  }
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))throw new Error('TMDB sync already running.');
+  try {
+    const max=6;
+    const entries=tmdbCatalogCandidates_(3).slice(0,max);
+    const blogId=required_('BLOGGER_BLOG_ID');
+    const root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(blogId);
+    const known=bloggerListAudit_(root+'/posts?status=live&maxResults=100',300);
+    const result=[];
+    if(known.truncated)throw new Error('Published inventory too large for safe duplicate checks. Stop and review.');
+    const publishedTitles=new Set(known.items.map(x=>String(x.title||'').toLowerCase()));
+    const genreMaps={};
+    for(const entry of entries){
+      const m=entry.data,type=entry.type,key='tmdb_'+type+'_'+m.id;
+      const title=String(type==='movie'?m.title:m.name).trim();
+      const date=String(type==='movie'?m.release_date:m.first_air_date);
+      const postTitle=title+' ('+date.slice(0,4)+') — '+(type==='tv'?'TV show':'Movie')+' details';
+      if(props_().getProperty(key)||publishedTitles.has(postTitle.toLowerCase())){
+        result.push({type:type,id:m.id,status:'skipped_existing'});continue;
+      }
+      if(!genreMaps[type])genreMaps[type]=genres_(type);
+      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos');
+      const labels=[type==='movie'?'Movies':'TV Shows','TMDB']
+        .concat((m.genre_ids||[]).map(id=>genreMaps[type][id]).filter(Boolean).slice(0,4));
+      const body=mediaHtml_(m,type,genreMaps[type]);
+      const extras=detailExtrasHtml_(detail,type);
+      const review='<section class="inext-media__section">'+
+        '<h3>Editorial review required before publishing</h3>'+
+        '<p>This is an unreviewed metadata draft. Verify the underlying source, copyright permissions, region-specific availability and details. Add meaningful independent editorial context, a byline and current update date. Remove this notice before publication.</p>'+
+        '</section>';
+      const content=body.replace('</article>',extras+review+'</article>');
+      const draft=bloggerInsertDraft_({
+        kind:'blogger#post',title:postTitle,content:content,labels:labels
+      });
+      if(!draft||!draft.id)throw new Error('Blogger did not return a draft ID.');
+      props_().setProperty(key,String(draft.id));
+      result.push({type:type,id:m.id,title:postTitle,status:'created_draft',draftId:draft.id});
+    }
+    Logger.log('TMDB LICENSED DRAFT BATCH — NO POSTS PUBLISHED');
+    Logger.log(JSON.stringify(result,null,2));
+    return result;
+  }finally{lock.releaseLock();}
+}
+
+/** Read-only status of commercial publishing gate and blog connection. */
+function tmdbIntegrationStatus() {
+  const p=props_();
+  const status={
+    tmdbTokenConfigured:!!p.getProperty('TMDB_READ_TOKEN'),
+    bloggerBlogIdConfigured:!!p.getProperty('BLOGGER_BLOG_ID'),
+    rightsFlag:p.getProperty('TMDB_RIGHTS_REVIEWED')==='yes'?'yes':'no',
+    supportedSections:TMDB_CATALOG_SOURCES.map(x=>x.section),
+    maxDraftsPerLicensedBatch:6,
+    realTmdbPublishingEnabled:false,
+    publicTmdbFeedEnabled:false,
+    note:'No commercial permission is inferred from a valid API token.'
+  };
+  Logger.log(JSON.stringify(status,null,2));
+  return status;
+}
