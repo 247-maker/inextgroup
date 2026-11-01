@@ -1148,3 +1148,136 @@ function professionalVerifiedEditorial_(detail,type){
   '<a href="https://www.20thcenturystudios.com/movies/the-dog-stars" target="_blank" rel="noopener noreferrer">Official 20th Century Studios source</a>.</p>'+
   '</section>';
 }
+
+
+/**
+ * INEXTGROUP complete launch pass (manual, owner-triggered).
+ * 1. Inventory published movie/TV titles and person pages.
+ * 2. Create/publish up to 12 missing first-party cast biographies.
+ * 3. Re-read published URLs, then upgrade up to 8 Movie/TV pages.
+ * 4. Verify private backup before changing any pre-existing post.
+ * 5. Return real URLs for Search Console; no fabricated local links.
+ *
+ * This single run uses API/data/media permissions affirmed by the owner.
+ * Avoid using triggers or running it in parallel. Later reruns can fill
+ * additional inventory, subject to Blogger and Apps Script quotas.
+ */
+function launchInextgroupMovieDatabase() {
+  if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes'){
+    throw new Error('Review owner commercial TMDB permission, including people images, and set TMDB_RIGHTS_REVIEWED=yes first.');
+  }
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(3000))throw new Error('INEXTGROUP database launch already running.');
+  const outcome={startedAt:new Date().toISOString(),publishedPeople:[],updatedMovies:[],errors:[],note:'Existing editorial text is retained in verified private Blogger backup drafts.'};
+  try{
+    let idx=dbIndex_();
+    const movieKeys=Object.keys(idx.media).sort((a,b)=>a==='movie:1384216'?-1:b==='movie:1384216'?1:a.localeCompare(b)).slice(0,8);
+    if(!movieKeys.length)throw new Error('No published TMDB movie/TV posts found. Publish source movie drafts first.');
+    const draftInventory=bloggerListAudit_(idx.root+'/posts?status=draft&maxResults=100',300);
+    if(draftInventory.truncated)throw new Error('Draft inventory incomplete. Avoid duplicate profiles.');
+    const existingDraftIds=new Set();
+    draftInventory.items.forEach(p=>{
+      const m=String(p.content||'').match(/data-inext-person-id=["'](\d{1,14})["']/);
+      if(m)existingDraftIds.add(m[1]);
+    });
+    const detailed=[];
+    const qs='?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null';
+    for(const key of movieKeys){
+      const [type,id]=key.split(':');
+      try{
+        const detail=tmdb_(type+'/'+id+qs);
+        if(String(detail.id)!==id)throw new Error('TMDB record mismatch for '+key);
+        detailed.push({key:key,type:type,detail:detail});
+      }catch(err){outcome.errors.push({item:key,step:'fetch',message:String(err.message||err)});}
+    }
+    const wanted=[],seen=new Set();
+    for(const movie of detailed){
+      for(const p of (movie.detail.credits&&movie.detail.credits.cast||[]).slice(0,8)){
+        if(!Number.isSafeInteger(p.id)||seen.has(p.id)||idx.people[String(p.id)]||existingDraftIds.has(String(p.id)))continue;
+        seen.add(p.id);
+        wanted.push(p.id);
+        if(wanted.length>=12)break;
+      }
+      if(wanted.length>=12)break;
+    }
+    for(const personId of wanted){
+      try{
+        const p=tmdb_('person/'+personId+'?append_to_response=combined_credits');
+        if(Number(p.id)!==personId||!p.name)continue;
+        const biography=String(p.biography||'').trim();
+        const credits=((p.combined_credits&&p.combined_credits.cast)||[])
+          .filter(c=>c.media_type==='movie'||c.media_type==='tv').slice(0,24);
+        if(biography.length<120&&credits.length<3){
+          outcome.errors.push({item:personId,step:'person',message:'Not enough profile data; skipped'});continue;
+        }
+        const photo=p.profile_path&&/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(p.profile_path)?
+          'https://image.tmdb.org/t/p/w342'+p.profile_path:'';
+        let body='<article class="inext-person-profile" data-inext-person-id="'+personId+'">'+
+          '<h2>'+esc_(p.name)+' — Biography and Filmography</h2>'+
+          (photo?'<img src="'+esc_(photo)+'" alt="'+esc_(p.name)+' photograph" width="230" height="345" loading="lazy"/>':'')+
+          '<p><strong>Profession:</strong> '+esc_(p.known_for_department||'Entertainment')+'</p>'+
+          (biography?'<h3>Biography</h3><p>'+esc_(biography)+'</p>':'')+
+          '<h3>Selected Movies and TV Shows</h3><ul>';
+        for(const c of credits){
+          const known=idx.media[c.media_type+':'+c.id],name=esc_(c.title||c.name||'Untitled');
+          body+='<li>'+(known?'<a href="'+esc_(known.url)+'">'+name+'</a>':name)+
+            (c.character?' <small>as '+esc_(c.character)+'</small>':'')+'</li>';
+        }
+        body+='</ul><p class="inext-media__source">Biography and credits sourced from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></article>';
+        // One POST per profile, no automatic external TMDB navigation.
+        const published=inextBloggerWriteWithRetry_(idx.root+'/posts',{
+          kind:'blogger#post',title:p.name+' — Biography and Filmography',
+          content:body,labels:['People','TMDB']
+        },'post');
+        if(!published.id||!published.url)throw new Error('Blogger did not return a published People URL.');
+        outcome.publishedPeople.push({tmdbId:personId,name:p.name,url:published.url});
+        idx.people[String(personId)]=published.url;
+        Utilities.sleep(1200);
+      }catch(err){
+        outcome.errors.push({item:'person:'+personId,step:'publish_person',message:String(err.message||err).slice(0,240)});
+        if(/HTTP 429|quota|rateLimit/i.test(String(err.message||err)))break;
+      }
+    }
+    // Refresh first-party graph after people posts are published.
+    idx=dbIndex_();
+    for(const entry of detailed){
+      const old=idx.media[entry.key];
+      if(!old||!old.id||!old.url)continue;
+      try{
+        const html=professionalMediaHtml_(entry.detail,entry.type,idx);
+        if(html.length<1300)throw new Error('Invalid generated detail HTML');
+        if(html===old.content){
+          outcome.updatedMovies.push({title:old.title,url:old.url,status:'unchanged'});continue;
+        }
+        const backup=inextBackupPublishedPost_(idx,old);
+        const updated=inextBloggerWriteWithRetry_(idx.root+'/posts/'+encodeURIComponent(old.id),{
+          kind:'blogger#post',id:old.id,title:old.title,content:html,labels:old.labels||[]
+        },'put');
+        outcome.updatedMovies.push({title:old.title,url:updated.url||old.url,status:'updated',backupDraftId:backup});
+        Utilities.sleep(1200);
+      }catch(err){
+        outcome.errors.push({item:entry.key,step:'update_movie',message:String(err.message||err).slice(0,240)});
+        if(/HTTP 429|quota|rateLimit/i.test(String(err.message||err)))break;
+      }
+    }
+    outcome.finishedAt=new Date().toISOString();
+    Logger.log('INEXTGROUP FULL MOVIE DATABASE LAUNCH RESULTS');
+    Logger.log(JSON.stringify(outcome,null,2));
+    return outcome;
+  }finally{lock.releaseLock();}
+}
+function inextBloggerWriteWithRetry_(url,body,method){
+  const options={method:method,contentType:'application/json',
+    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+    payload:JSON.stringify(body),muteHttpExceptions:true,followRedirects:false};
+  for(let attempt=0;attempt<3;attempt++){
+    const res=UrlFetchApp.fetch(url,options);
+    const status=res.getResponseCode();
+    if(status===200||status===201)return JSON.parse(res.getContentText());
+    if((status===429||status>=500)&&attempt<2){
+      Utilities.sleep((attempt+1)*2500);continue;
+    }
+    throw new Error('Blogger API HTTP '+status+' '+res.getContentText().slice(0,120));
+  }
+  throw new Error('Blogger API unavailable');
+}
