@@ -258,6 +258,13 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
 .inext-season-fallback{display:grid;place-items:center;width:70px;height:100px;background:#263849;color:#a8c4d3;border-radius:7px}
 .inext-season-description{padding:0 14px 14px;color:#dae5ec;line-height:1.6;font-size:14px}
 @media(max-width:650px){.inext-tabs{top:0;border-radius:10px}.inext-tab{padding:11px 12px;font-size:13px}.inext-tab-panels{padding:0 14px 15px}.inext-seasons-grid{grid-template-columns:1fr}}
+
+.inext-cast-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 18px}
+.inext-cast-controls input{background:#132337;color:#f5fbff;border:1px solid #466279;border-radius:9px;padding:10px 12px;min-width:min(280px,100%);flex:1 1 220px}
+.inext-cast-controls button{border:1px solid #3c8175;background:#19443f;color:#dcfff7;font-weight:700;border-radius:9px;padding:10px 14px;cursor:pointer}
+.inext-cast-controls button:hover{background:#256c60}
+.inext-cast-status{font-size:13px;color:#a4c7c7}
+.inext-pro-person[hidden]{display:none!important}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -704,6 +711,38 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
     // Sections remain visible with scripting disabled: DOM enhancement only.
     root.setAttribute('data-inext-interactive','ready');
     activate(initial,false,false);
+    // Cast explorer: search the actual cast on this page and reveal more credits.
+    var castGrid=root.querySelector('#inext-cast .inext-pro-cast-grid');
+    if(castGrid){
+      var actors=Array.prototype.slice.call(castGrid.querySelectorAll('.inext-pro-person'));
+      if(actors.length>12){
+        var tools=document.createElement('div');tools.className='inext-cast-controls';
+        var search=document.createElement('input');
+        search.type='search';search.setAttribute('aria-label','Find an actor or character');
+        search.placeholder='Find an actor or character';
+        var more=document.createElement('button');more.type='button';more.textContent='Show all '+actors.length+' cast members';
+        var expanded=false;
+        function filterCast(){
+          var q=search.value.trim().toLowerCase(),count=0;
+          actors.forEach(function(a,i){
+            var matches=!q || (a.textContent||'').toLowerCase().indexOf(q)!==-1;
+            var show=matches && (!!q||expanded||i<12);
+            a.hidden=!show;
+            if(show)count++;
+          });
+          more.hidden=!!q||actors.length<=12;
+          more.textContent=expanded?'Show fewer cast members':'Show all '+actors.length+' cast members';
+          var status=tools.querySelector('.inext-cast-status');
+          if(status)status.textContent=q?count+' matching cast member(s)':'';
+        }
+        var status=document.createElement('span');status.className='inext-cast-status';status.setAttribute('role','status');
+        tools.appendChild(search);tools.appendChild(more);tools.appendChild(status);
+        castGrid.parentNode.insertBefore(tools,castGrid);
+        more.addEventListener('click',function(){expanded=!expanded;filterCast();});
+        search.addEventListener('input',filterCast);
+        filterCast();
+      }
+    }
     // When details link points to a section inside another tab, reveal its panel.
     window.addEventListener('hashchange',function(){
       var hash=(location.hash||'').replace(/^#/,'');
