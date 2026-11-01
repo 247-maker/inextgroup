@@ -128,6 +128,14 @@ body.static_page .post-body p{line-height:1.8}
 .inext-card__image img{aspect-ratio:2/3}
 .inext-card__image:focus-visible,.inext-card__title a:focus-visible{outline:3px solid #8cdbfa;outline-offset:3px}
 @media(max-width:680px){.footer-inner{gap:12px}.inext-catalog-actions{align-items:flex-start;flex-direction:column}}
+
+/* Accessible published movie/TV detail navigation and factual metadata. */
+.inext-detail-nav{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:13px;color:var(--sub);margin:0 0 20px}
+.inext-detail-nav a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.inext-detail-nav span[aria-hidden='true']{opacity:.65}
+.inext-media__poster img{display:block;aspect-ratio:2/3}
+.inext-media__source{margin-top:18px}
+@media(max-width:620px){.inext-detail-nav{margin-bottom:14px}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -306,6 +314,87 @@ body.static_page .post-body p{line-height:1.8}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDiscovery);
   else initDiscovery();
+})();
+//]]>
+</script>
+</b:if>
+<b:if cond='data:view.isSingleItem'>
+<script type='text/javascript'>
+//<![CDATA[
+(function(){
+  'use strict';
+  function initDetailEnhancements(){
+    var entry=document.querySelector('#main .post-body .inext-media');
+    if(!entry || entry.getAttribute('data-inext-seo-ready')==='true')return;
+    var titleEl=entry.querySelector('.inext-media__title');
+    var typeEl=entry.querySelector('.inext-media__eyebrow');
+    var overview=entry.querySelector('.inext-media__section p');
+    if(!titleEl||!typeEl||!overview)return;
+    var typeText=(typeEl.textContent||'').trim().toLowerCase();
+    var mediaType=/^movie information$/.test(typeText)?'Movie':(/^tv show information$/.test(typeText)?'TVSeries':null);
+    if(!mediaType)return; // Never mark fictional/test or generic content as a real title.
+    var name=(titleEl.textContent||'').trim();
+    var description=(overview.textContent||'').trim();
+    if(!name||description.length<80)return;
+    var facts=entry.querySelectorAll('.inext-media__facts li');
+    var date='';
+    Array.prototype.forEach.call(facts,function(node){
+      var value=(node.textContent||'').trim();
+      if(!date && /^\d{4}-\d{2}-\d{2}$/.test(value)){
+        var d=new Date(value+'T00:00:00Z');
+        if(!isNaN(d.getTime()) && d.toISOString().slice(0,10)===value)date=value;
+      }
+    });
+    var image=entry.querySelector('.inext-media__poster img');
+    var imageUrl='';
+    if(image){
+      try{
+        var parsed=new URL(image.currentSrc||image.src,window.location.href);
+        if(parsed.protocol==='https:')imageUrl=parsed.href;
+      }catch(err){}
+    }
+    var source=entry.querySelector('.inext-media__source a[href*="themoviedb.org"], a[href*="themoviedb.org/movie/"], a[href*="themoviedb.org/tv/"]');
+    var sameAs='';
+    if(source){
+      try{
+        var srcUrl=new URL(source.href,window.location.href);
+        if(srcUrl.protocol==='https:' && (srcUrl.hostname==='www.themoviedb.org'||srcUrl.hostname==='themoviedb.org'))sameAs=srcUrl.href;
+      }catch(err){}
+    }
+    var canonical=document.querySelector('link[rel="canonical"]');
+    var pageUrl=(canonical&&canonical.href)||window.location.href.split('#')[0].split('?')[0];
+    var genreEl=entry.querySelector('.inext-media__genres');
+    var genre=[];
+    if(genreEl){
+      var raw=(genreEl.textContent||'').replace(/^Genres:\s*/i,'');
+      genre=raw.split('·').map(function(x){return x.trim();}).filter(Boolean);
+    }
+    var entity={'@context':'https://schema.org','@type':mediaType,name:name,description:description,
+      mainEntityOfPage:pageUrl};
+    if(date)entity.datePublished=date;
+    if(imageUrl)entity.image=imageUrl;
+    if(genre.length)entity.genre=genre;
+    if(sameAs)entity.sameAs=sameAs;
+    // Rating is intentionally excluded: vote count and score provenance aren't reliably present in HTML.
+    var script=document.createElement('script');
+    script.type='application/ld+json';
+    script.textContent=JSON.stringify(entity).replace(/</g,'\\u003c');
+    document.head.appendChild(script);
+    var nav=document.createElement('nav');
+    nav.className='inext-detail-nav';nav.setAttribute('aria-label','Breadcrumb');
+    var home=document.createElement('a');home.href='/';home.textContent='Home';
+    var separator=document.createElement('span');separator.setAttribute('aria-hidden','true');separator.textContent='›';
+    var category=document.createElement('a');
+    category.href=mediaType==='Movie'?'/search/label/Movies':'/search/label/TV%20Shows';
+    category.textContent=mediaType==='Movie'?'Movies':'TV Shows';
+    var sep2=separator.cloneNode(true);
+    var current=document.createElement('span');current.textContent=name;current.setAttribute('aria-current','page');
+    nav.appendChild(home);nav.appendChild(separator);nav.appendChild(category);nav.appendChild(sep2);nav.appendChild(current);
+    entry.parentNode.insertBefore(nav,entry);
+    entry.setAttribute('data-inext-seo-ready','true');
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDetailEnhancements);
+  else initDetailEnhancements();
 })();
 //]]>
 </script>
