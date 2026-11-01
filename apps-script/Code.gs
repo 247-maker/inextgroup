@@ -862,7 +862,7 @@ function professionalMediaHtml_(d,type,index) {
  const writers=crew.filter(p=>/^(Screenplay|Writer|Story|Teleplay)$/.test(p.job||'')).map(p=>p.name).filter(Boolean);
  const leads=tv?(d.created_by||[]).map(p=>p.name).filter(Boolean):directors;
  const unique=a=>[...new Set(a)];
- const videos=((d.videos&&d.videos.results)||[]).filter(v=>v.site==='YouTube'&&v.type==='Trailer'&&v.official===true&&/^[A-Za-z0-9_-]{11}$/.test(v.key||'')).slice(0,2);
+ const videos=((d.videos&&d.videos.results)||[]).filter(v=>v.site==='YouTube'&&v.official===true&&['Trailer','Teaser','Featurette'].includes(v.type)&&/^[A-Za-z0-9_-]{11}$/.test(v.key||'')).slice(0,8);
  const genres=(d.genres||[]).map(g=>g.name).filter(Boolean);
  const countries=(d.production_countries||[]).map(p=>p.name).filter(Boolean);
  const companies=(d.production_companies||[]).map(p=>p.name).filter(Boolean);
@@ -880,6 +880,7 @@ function professionalMediaHtml_(d,type,index) {
  if(genres.length)html+='<p class="inext-pro-genres">'+genres.map(e).join(' · ')+'</p>';
  if(leads.length)html+='<p><strong>'+(tv?'Created by':'Directed by')+':</strong> '+unique(leads).map(e).join(', ')+'</p>';
  html+='</div></div></div>';
+ html+='<div class="inext-detail-layout"><div class="inext-detail-main">';
  html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-crew">Crew</a><a href="#inext-gallery">Gallery</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
  if(d.overview)html+='<section class="inext-pro-section" id="inext-overview"><h3>Story Overview</h3><p>'+e(d.overview)+'</p></section>';
  html+='<section class="inext-pro-section" id="inext-cast"><h3>Cast &amp; Characters'+((credit.cast||[]).length>cast.length?' ('+cast.length+' of '+credit.cast.length+')':' ('+cast.length+')')+'</h3><div class="inext-pro-cast-grid">';
@@ -903,8 +904,8 @@ function professionalMediaHtml_(d,type,index) {
  (tv?tile('Seasons',String(d.number_of_seasons==null?'':d.number_of_seasons))+tile('Episodes',String(d.number_of_episodes==null?'':d.number_of_episodes)):'');
  html+='</dl></section>';
  if(keywords.length)html+='<section class="inext-pro-section"><h3>Topics &amp; Keywords</h3><p>'+keywords.map(e).join(' · ')+'</p></section>';
- html+='<section class="inext-pro-section" id="inext-media"><h3>Official Trailers</h3>';
- if(videos.length)videos.forEach(v=>{html+='<p><a class="inext-pro-trailer" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer">▶ '+e(v.name||'Watch official trailer')+'</a></p>';});
+ html+='<section class="inext-pro-section" id="inext-media"><h3>Official Videos</h3>';
+ if(videos.length){html+='<div class="inext-video-cards">';videos.forEach(v=>{html+='<a class="inext-video-card" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer"><img src="https://i.ytimg.com/vi/'+v.key+'/hqdefault.jpg" alt="'+e(v.name||'Official video')+' thumbnail" loading="lazy" width="320" height="180"/><span class="inext-video-play" aria-hidden="true">▶</span><strong>'+e(v.name||'Official video')+'</strong><small>'+e(v.type)+'</small></a>';});html+='</div>';}
  else html+='<p>No verified official trailer was returned by the API for this record.</p>';
  html+='</section>';
  if(tv)html+=professionalTvSeasonsHtml_(d);
@@ -914,6 +915,7 @@ function professionalMediaHtml_(d,type,index) {
  // Reuse the verified first-party related-post graph; never create fake links.
  html+='<div id="inext-related">'+dbRelated_(currentKey,item)+'</div>';
  html+='<p class="inext-media__source">Movie and television metadata: TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a href="https://www.themoviedb.org/'+type+'/'+d.id+'" target="_blank" rel="noopener noreferrer">Source record</a>.</p>';
+ html+='</div>'+professionalDetailsSidebar_(d,type)+'</div>';
  html+='</article>';
  return html;
 }
@@ -1467,4 +1469,39 @@ function professionalTvSeasonsHtml_(d){
  }
  html+='</div></section>';
  return html;
+}
+
+
+/** Desktop-right/mobile-below details rail modelled on TMDB information hierarchy. */
+function professionalDetailsSidebar_(d,type){
+ const e=esc_,tv=type==='tv';
+ const info=[
+  ['Status',d.status||''],
+  [tv?'Type':'Original title',tv?d.type||'':d.original_title||''],
+  ['Original language',d.original_language?String(d.original_language).toUpperCase():''],
+  ['Original network',tv?(d.networks||[]).map(n=>n.name).join(', '):''],
+  ['Created by',tv?(d.created_by||[]).map(p=>p.name).join(', '):''],
+  ['Episodes',tv&&d.number_of_episodes!=null?String(d.number_of_episodes):''],
+  ['Seasons',tv&&d.number_of_seasons!=null?String(d.number_of_seasons):''],
+  ['Last air date',tv?d.last_air_date||'':''],
+  ['Homepage',d.homepage||'']
+ ];
+ let html='<aside class="inext-detail-sidebar" aria-label="Title information">'+
+  '<h3>Facts &amp; Details</h3><dl class="inext-sidebar-facts">';
+ for(const pair of info){
+  if(!pair[1])continue;
+  const value=pair[0]==='Homepage'?'<a href="'+e(pair[1])+'" target="_blank" rel="noopener noreferrer">Official website</a>':e(pair[1]);
+  html+='<div><dt>'+e(pair[0])+'</dt><dd>'+value+'</dd></div>';
+ }
+ html+='</dl>';
+ const keywords=((d.keywords&&(d.keywords.results||d.keywords.keywords))||[]).map(x=>x.name).filter(Boolean).slice(0,14);
+ if(keywords.length){
+  html+='<h4>Keywords</h4><div class="inext-keyword-cloud">';
+  for(const word of keywords)html+='<span>'+e(word)+'</span>';
+  html+='</div>';
+ }
+ const networks=tv?(d.networks||[]):[];
+ if(networks.length)html+='<h4>Networks</h4><p class="inext-network-list">'+networks.map(n=>e(n.name)).join(' · ')+'</p>';
+ html+='<p class="inext-sidebar-note">Information is provided for discovery. Check current regional release and availability with official distributors.</p>';
+ return html+'</aside>';
 }
