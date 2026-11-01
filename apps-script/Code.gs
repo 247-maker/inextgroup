@@ -732,6 +732,9 @@ function dbEnhanceHtml_(content,detail,key,index){
   }
   return '<li'+attrs+'>'+clean+'</li>';
  });
+ // Convert legacy TMDB cast hyperlinks to verified internal links or plain text.
+ html=html.replace(/<a\b[^>]*href=["']https:\/\/(?:www\.)?themoviedb\.org\/person\/(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi,
+   function(_all,id,label){return index.people[id]?'<a href="'+esc_(index.people[id])+'">'+label+'</a>':label;});
  // Older posts had external TMDB actor links but no person-id attributes.
  // Rebuild their original cast list conservatively when the names match.
  cast.forEach(p=>{
