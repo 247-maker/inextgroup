@@ -149,6 +149,19 @@ html{scroll-padding-top:92px}
 .inext-card__fallback{min-height:100%;aspect-ratio:2/3}
 .inext-media__poster img{width:100%;height:auto;aspect-ratio:2/3}
 @media(max-width:420px){.inext-home-head{flex-wrap:wrap}.inext-home-head a{white-space:normal}.inext-catalog-filters input,.inext-catalog-filters select{font-size:16px}}
+
+/* Discover people, biographies, cast pages and verified in-site article graph. */
+.inext-cast-list a,.inext-related-list a,.inext-filmography a,.inext-person-profile a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.inext-cast-list a:hover,.inext-related-list a:hover,.inext-person-profile a:hover{text-decoration-thickness:2px}
+.inext-related-list{margin:10px 0 15px!important;padding-left:22px!important;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.inext-related-list li{color:var(--ink);padding:4px 0;overflow-wrap:anywhere}
+.inext-person-profile{max-width:900px;margin:auto;color:var(--ink)}
+.inext-person-profile img{border-radius:15px;max-width:230px;float:left;margin:0 20px 15px 0}
+.inext-person-profile h2{font-size:clamp(26px,3vw,38px);line-height:1.2}
+.inext-person-profile h3{clear:both;margin-top:24px}
+.inext-person-profile li{margin:7px 0}
+.inext-cast-links{clear:both}
+@media(max-width:600px){.inext-related-list{grid-template-columns:1fr}.inext-person-profile img{float:none;display:block;margin:10px 0 15px}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -175,6 +188,7 @@ html{scroll-padding-top:92px}
 <a expr:href='data:blog.homepageUrl'>Home</a>
 <a expr:href='data:blog.homepageUrl + &quot;search/label/Movies&quot;'>Movies</a>
 <a expr:href='data:blog.homepageUrl + &quot;search/label/TV%20Shows&quot;'>TV Shows</a>
+<a expr:href='data:blog.homepageUrl + &quot;search/label/People&quot;'>People</a>
 </nav>
 <form action='/search' class='search' method='get' role='search'><input aria-label='Search titles' name='q' placeholder='Search movies and shows...' required='required' type='search'/><button type='submit'>Search</button></form>
 </div></header>
