@@ -570,6 +570,7 @@ function prepareLicensedTmdbDraftBatch() {
     if(known.truncated||existingDrafts.truncated)throw new Error('Blogger inventory truncated; stop for safe duplicate checks.');
     const publishedTitles=new Set(known.items.concat(existingDrafts.items).map(x=>String(x.title||'').toLowerCase()));
     const genreMaps={};
+    const publishedIndex=dbIndex_();
     for(const entry of entries){
       const m=entry.data,type=entry.type,key='tmdb_'+type+'_'+m.id;
       const title=String(type==='movie'?m.title:m.name).trim();
@@ -579,16 +580,15 @@ function prepareLicensedTmdbDraftBatch() {
         result.push({type:type,id:m.id,status:'skipped_existing'});continue;
       }
       if(!genreMaps[type])genreMaps[type]=genres_(type);
-      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos');
+      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos,keywords,release_dates');
       const labels=[type==='movie'?'Movies':'TV Shows','TMDB']
-        .concat((m.genre_ids||[]).map(id=>genreMaps[type][id]).filter(Boolean).slice(0,4));
-      const body=mediaHtml_(m,type,genreMaps[type]);
-      const extras=detailExtrasHtml_(detail,type);
-      const review='<section class="inext-media__section">'+
+        .concat((detail.genres||[]).map(g=>g.name).filter(Boolean).slice(0,4));
+      const body=professionalMediaHtml_(detail,type,publishedIndex);
+      const review='<section class="inext-pro-section">'+
         '<h3>Editorial review required before publishing</h3>'+
-        '<p>This is an unreviewed metadata draft. Verify the underlying source, copyright permissions, region-specific availability and details. Add meaningful independent editorial context, a byline and current update date. Remove this notice before publication.</p>'+
+        '<p>This is an unreviewed TMDB metadata draft. Verify production details, copyrights, trailers and dates; add original editorial commentary. Remove this notice before publication.</p>'+
         '</section>';
-      const content=body.replace('</article>',extras+review+'</article>');
+      const content=body.replace('</article>',review+'</article>');
       const draft=bloggerInsertDraft_({
         kind:'blogger#post',title:postTitle,content:content,labels:labels
       });
