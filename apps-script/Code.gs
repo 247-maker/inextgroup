@@ -420,7 +420,7 @@ function bloggerListAudit_(firstUrl,maxItems) {
     const list=payload.items||[];
     for(const item of list){
       if(items.length>=maxItems){truncated=true;break;}
-      items.push({id:item.id,title:item.title,content:item.content,url:item.url,labels:item.labels||[]});
+      items.push({id:item.id,title:item.title,content:item.content,url:item.url,status:item.status,labels:item.labels||[]});
     }
     if(truncated)break;
     if(payload.nextPageToken){
@@ -1715,7 +1715,12 @@ function inextScheduledTmdbSync(){
 function inextEnsurePublished_(root,post){
   if(!post||!/^\d+$/.test(String(post.id||'')))throw new Error('Invalid new Blogger post ID');
   let current=post;
-  const status=String(current.status||'').toUpperCase();
+  let status=String(current.status||'').toUpperCase();
+  if(!status){
+    // Some Blogger list responses omit status; use the caller's verified
+    // draft inventory only for explicit existing-draft publication.
+    status='DRAFT';
+  }
   if(status!=='LIVE'){
     if(status!=='DRAFT')throw new Error('Unexpected Blogger post status: '+status);
     const response=UrlFetchApp.fetch(root+'/posts/'+encodeURIComponent(post.id)+'/publish',{
