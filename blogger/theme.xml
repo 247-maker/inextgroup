@@ -115,6 +115,19 @@ body.inext-home-ready .layout>aside{display:none}
 .inext-footer-pages a{font-size:13px;color:#c7d9e6}
 body.static_page .post-body h2,body.static_page .post-body h3{margin-top:25px}
 body.static_page .post-body p{line-height:1.8}
+
+/* Clearer site footer and complete-site search fallback. */
+.footer-inner{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+.footer-inner>div{max-width:100%;overflow-wrap:anywhere}
+.footer-inner>div:nth-child(2){font-size:12px;line-height:1.7}
+.inext-footer-pages{margin-top:5px}
+.inext-catalog-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 0}
+.inext-catalog-actions a{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:3px}
+.inext-catalog-scope{font-size:12px;color:var(--sub)}
+.inext-catalog-empty a{color:var(--accent);text-decoration:underline}
+.inext-card__image img{aspect-ratio:2/3}
+.inext-card__image:focus-visible,.inext-card__title a:focus-visible{outline:3px solid #8cdbfa;outline-offset:3px}
+@media(max-width:680px){.footer-inner{gap:12px}.inext-catalog-actions{align-items:flex-start;flex-direction:column}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -155,12 +168,12 @@ body.static_page .post-body p{line-height:1.8}
       <select aria-label='Filter by genre' id='inext-catalog-genre'><option value='all'>All genres</option></select>
       <select aria-label='Filter by release year' id='inext-catalog-year'><option value='all'>All years</option></select>
     </div>
-    <p aria-live='polite' class='inext-catalog-count' id='inext-catalog-count'>Loading available guides...</p>
+    <div class='inext-catalog-actions'><p aria-live='polite' class='inext-catalog-count' id='inext-catalog-count'>Loading available guides...</p><a aria-label='Search all published Blogger posts' href='/search' id='inext-search-all'>Search all published posts →</a></div><p class='inext-catalog-scope'>Filters cover titles loaded on this homepage. Use full-site search to find older published posts.</p>
   </section>
   <section aria-label='Filtered catalogue results' class='inext-home-section' id='inext-catalog-results' hidden='hidden'>
     <div class='inext-home-head'><div><h2>Search results</h2><p>Matching published articles</p></div></div>
     <div class='inext-poster-grid' id='inext-catalog-grid'></div>
-    <p class='inext-catalog-empty' id='inext-catalog-empty' hidden='hidden'>No matching guides are published yet.</p>
+    <p class='inext-catalog-empty' id='inext-catalog-empty' hidden='hidden'>No matches among recently loaded guides. <a href='/search' id='inext-search-empty'>Search all published posts</a>.</p>
   </section>
   <nav aria-label='Discover by genre' class='inext-genre-nav'>
     <a href='/search/label/Action'>Action</a><a href='/search/label/Drama'>Drama</a><a href='/search/label/Comedy'>Comedy</a><a href='/search/label/Thriller'>Thriller</a><a href='/search/label/Animation'>Animation</a><a href='/search/label/Documentary'>Documentary</a>
@@ -221,7 +234,7 @@ body.static_page .post-body p{line-height:1.8}
       var article=document.createElement('article');article.className='inext-card';
       var cover=document.createElement('a');cover.className='inext-card__image';cover.href=item.href;cover.setAttribute('aria-label','Open '+item.title);
       if(item.poster){
-        var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=item.poster;img.alt=item.title+' poster';cover.appendChild(img);
+        var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.width=300;img.height=450;img.referrerPolicy='no-referrer-when-downgrade';img.src=item.poster;img.alt=item.title+' poster';cover.appendChild(img);
       }else{
         var fallback=document.createElement('span');fallback.className='inext-card__fallback';fallback.textContent=item.title;cover.appendChild(fallback);
       }
@@ -252,9 +265,12 @@ body.static_page .post-body p{line-height:1.8}
       while(grid.firstChild)grid.removeChild(grid.firstChild);
       if(hasFilter)list.slice(0,100).forEach(function(x){grid.appendChild(linkCard(x));});
       empty.hidden=!hasFilter||list.length>0;
+      var fullSiteUrl='/search'+(query?'?q='+encodeURIComponent(query):'');
+      document.getElementById('inext-search-all').href=fullSiteUrl;
+      document.getElementById('inext-search-empty').href=fullSiteUrl;
       document.getElementById('inext-catalog-count').textContent=catalog.length?
-        'Browsing '+catalog.length+' recently loaded published guides'+(hasFilter?' · '+list.length+' matching':''):
-        'No published guides are available to search yet.';
+        'Showing '+catalog.length+' published guides loaded on this page'+(hasFilter?' · '+list.length+' matching locally':''):
+        'No published guides are loaded on this homepage yet.';
     }
     function setupCatalogue() {
       var yearSelect=document.getElementById('inext-catalog-year');
