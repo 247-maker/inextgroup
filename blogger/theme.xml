@@ -173,7 +173,7 @@ body.inext-home-ready .layout>aside{display:none}
 <b:if cond='data:view.isHomepage'><h2>Latest discoveries</h2></b:if>
 <b:section id='main' class='main' maxwidgets='1' name='Posts' showaddelement='no'><b:widget id='Blog1' locked='true' title='Blog Posts' type='Blog' version='2' visible='true'/></b:section>
 </section><aside class='sidebox'><b:section id='sidebar' class='sidebar' name='Categories' showaddelement='yes'><b:widget id='Label1' locked='false' title='Browse genres' type='Label' version='2' visible='true'/></b:section></aside></main>
-<footer class='footer'><div class='shell footer-inner'><div>© INEXTGROUP — Independent movie and TV discovery.</div><div>This product uses the TMDB API but is not endorsed or certified by TMDB. Add the official TMDB logo before production use. Movies and posters belong to their respective rights holders.</div></div></footer>
+<footer class='footer'><div class='shell footer-inner'><div>© INEXTGROUP — Independent movie and TV discovery.</div><div>This product uses the TMDB API but is not endorsed or certified by TMDB. Movie and TV artwork belongs to its respective rights holders.</div></div></footer>
 <b:if cond='data:view.isHomepage'>
 <script type='text/javascript'>
 //<![CDATA[
