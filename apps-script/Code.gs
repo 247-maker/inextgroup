@@ -1541,11 +1541,13 @@ function professionalDetailsSidebar_(d,type){
  * Ongoing INEXTGROUP TMDB -> Blogger publishing.
  * Runs via one installable Apps Script time trigger; not a hosted scraper.
  * Owner MUST explicitly install this task after granting commercial TMDB rights.
- * Uses fixed daily limits, no fake film metadata, and duplicate checks against
- * every published post + private draft reachable through Blogger API.
+ * The requested 5000/day is a CONFIGURED CEILING, not achievable throughput
+ * on this single hourly Apps Script trigger (theoretical max is 240/day at 10/run).
+ * Actual quota, runtime, content validity, and Blogger inventory further limit output.
+ * Uses bounded writes, and duplicate checks against reachable published/draft posts.
  */
 const INEXT_AUTO=Object.freeze({
- triggerHours:6,maxPerRun:2,maxPerDay:6,
+ triggerHours:1,maxPerRun:10,maxPerDay:5000,
  sources:['trending/movie/week','trending/tv/week','movie/popular','tv/popular'],
  minimumOverview:180,minimumCast:2
 });
@@ -1556,6 +1558,8 @@ function inextAutoPublishStatus(){
  const output={installedTriggers:triggers.length,enabled:p.getProperty('INEXT_AUTO_ENABLED')==='yes',
   mode:p.getProperty('INEXT_AUTO_MODE')||'draft',scheduleHours:INEXT_AUTO.triggerHours,
   maxPerRun:INEXT_AUTO.maxPerRun,maxPerDay:INEXT_AUTO.maxPerDay,
+  upperBoundPerDayAtScheduledRate:24*INEXT_AUTO.maxPerRun,
+  warning:'5000 is a ceiling, NOT a publishing guarantee; actual limits depend on source candidates, API quotas, execution time and Blogger per-account limits.',
   lastResult:p.getProperty('INEXT_AUTO_LAST_REPORT')||'Never run',
   lastDate:p.getProperty('INEXT_AUTO_LAST_DAY')||'',
   todayCount:Number(p.getProperty('INEXT_AUTO_DAY_COUNT')||0),
