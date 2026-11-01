@@ -863,6 +863,7 @@ function professionalMediaHtml_(d,type,index) {
  const leads=tv?(d.created_by||[]).map(p=>p.name).filter(Boolean):directors;
  const unique=a=>[...new Set(a)];
  const videos=((d.videos&&d.videos.results)||[]).filter(v=>v.site==='YouTube'&&v.official===true&&['Trailer','Teaser','Featurette'].includes(v.type)&&/^[A-Za-z0-9_-]{11}$/.test(v.key||'')).slice(0,8);
+ const heroTrailer=videos.find(v=>v.type==='Trailer')||videos[0]||null;
  const genres=(d.genres||[]).map(g=>g.name).filter(Boolean);
  const countries=(d.production_countries||[]).map(p=>p.name).filter(Boolean);
  const companies=(d.production_companies||[]).map(p=>p.name).filter(Boolean);
@@ -879,6 +880,8 @@ function professionalMediaHtml_(d,type,index) {
  if(rating)html+='<p class="inext-pro-rating">★ '+e(rating)+'</p>';
  if(genres.length)html+='<p class="inext-pro-genres">'+genres.map(e).join(' · ')+'</p>';
  if(leads.length)html+='<p><strong>'+(tv?'Created by':'Directed by')+':</strong> '+unique(leads).map(e).join(', ')+'</p>';
+ if(d.overview)html+='<p class="inext-hero-overview">'+e(d.overview)+'</p>';
+ if(heroTrailer)html+='<div class="inext-hero-actions"><a class="inext-hero-trailer" href="https://www.youtube.com/watch?v='+heroTrailer.key+'" target="_blank" rel="noopener noreferrer">▶ Play official '+e(heroTrailer.type.toLowerCase())+'</a></div>';
  html+='</div></div></div>';
  html+='<div class="inext-detail-layout"><div class="inext-detail-main">';
  html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-crew">Crew</a><a href="#inext-gallery">Gallery</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
@@ -1508,7 +1511,7 @@ function professionalDetailsSidebar_(d,type){
   ['Episodes',tv&&d.number_of_episodes!=null?String(d.number_of_episodes):''],
   ['Seasons',tv&&d.number_of_seasons!=null?String(d.number_of_seasons):''],
   ['Last air date',tv?d.last_air_date||'':''],
-  ['Homepage',d.homepage||'']
+  ['Homepage',/^https:\/\/[^\s"'<>]+$/i.test(d.homepage||'')?d.homepage:'']
  ];
  let html='<aside class="inext-detail-sidebar" aria-label="Title information">'+
   '<h3>Facts &amp; Details</h3><dl class="inext-sidebar-facts">';
