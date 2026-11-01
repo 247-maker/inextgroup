@@ -223,7 +223,8 @@ function detailExtrasHtml_(detail,type) {
   if (cast.length) {
     extra+='<h3>Cast</h3><ul class="inext-cast-list">';
     for (const person of cast) {
-      extra+='<li><strong>'+esc_(person.name)+'</strong>'+
+      const target=Number.isSafeInteger(person.id)?'https://www.themoviedb.org/person/'+person.id:null;
+      extra+='<li><strong>'+(target?'<a href="'+esc_(target)+'" target="_blank" rel="noopener noreferrer">'+esc_(person.name)+'</a>':esc_(person.name))+'</strong>'+
         (person.character?' <span>as '+esc_(person.character)+'</span>':'')+'</li>';
     }
     extra+='</ul>';
@@ -675,4 +676,157 @@ function publishReviewedTmdbPosts() {
     Logger.log(JSON.stringify(published,null,2));
     return published;
   }finally{lock.releaseLock();}
+}
+
+
+// Movie/TV knowledge graph: only published internal URLs are used as internal links.
+function dbIndex_(){
+ const id=required_('BLOGGER_BLOG_ID'),root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(id);
+ const pub=bloggerListAudit_(root+'/posts?status=live&maxResults=100',300);
+ if(pub.truncated)throw new Error('Too many published posts for complete link inventory.');
+ const people={},media={};
+ pub.items.forEach(p=>{
+  const h=String(p.content||'');
+  const person=h.match(/data-inext-person-id=["'](\d+)["']/i);
+  if(person&&p.url)people[person[1]]=p.url;
+  const m=h.match(/themoviedb\.org\/(movie|tv)\/(\d+)/i);
+  if(m&&p.url&&h.indexOf('inext-media__hero')>=0)media[m[1]+':'+m[2]]=p;
+ });
+ return {root:root,people:people,media:media,posts:pub.items};
+}
+function previewMovieDatabaseUpgrade(){
+ const x=dbIndex_();
+ const result={publishedPostCount:x.posts.length,mediaCount:Object.keys(x.media).length,
+  publishedPersonProfiles:Object.keys(x.people).length,
+  media:Object.keys(x.media).slice(0,20).map(k=>({tmdbKey:k,title:x.media[k].title,url:x.media[k].url}))};
+ Logger.log(JSON.stringify(result,null,2));return result;
+}
+function dbRelated_(key,index){
+ const type=key.split(':')[0],other=Object.keys(index.media).filter(k=>k!==key&&k.indexOf(type+':')===0).slice(0,6);
+ const label=type==='movie'?'Movies':'TV Shows',category=type==='movie'?'Movies':'TV%20Shows';
+ let h='<section class="inext-media__section inext-related"><h3>More '+label+' on INEXTGROUP</h3>';
+ if(other.length){h+='<ul class="inext-related-list">';
+  other.forEach(k=>{const p=index.media[k];h+='<li><a href="'+esc_(p.url)+'">'+esc_(p.title)+'</a></li>';});
+  h+='</ul>';
+ }else h+='<p>More movie and TV profiles will appear as our database grows.</p>';
+ return h+'<p><a href="/search/label/'+category+'">Browse '+label+'</a></p></section>';
+}
+function dbEnhanceHtml_(content,detail,key,index){
+ let html=String(content||'');
+ const cast=(detail.credits&&detail.credits.cast||[]).slice(0,12);
+ let internalCast=0,linked=0;
+ cast.forEach(p=>{
+  if(!Number.isSafeInteger(p.id)||!p.name)return;
+  const inside=index.people[String(p.id)];
+  const url=inside||'https://www.themoviedb.org/person/'+p.id;
+  const anchor='<a href="'+esc_(url)+'"'+(inside?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(p.name)+'</a>';
+  const strong='<strong>'+esc_(p.name)+'</strong>';
+  if(html.includes(strong)){html=html.split(strong).join('<strong>'+anchor+'</strong>');linked++;if(inside)internalCast++;}
+  // Existing external links are preserved here; after a new profile is published a fresh cast-links module below links internally.
+ });
+ const start='<!--INEXT_RELATED_START-->',end='<!--INEXT_RELATED_END-->';
+ const section=start+dbRelated_(key,index)+end;
+ const a=html.indexOf(start),b=html.indexOf(end);
+ if(a>=0&&b>a)html=html.slice(0,a)+section+html.slice(b+end.length);
+ else{
+  const endTag=html.lastIndexOf('</article>');
+  html=endTag>=0?html.slice(0,endTag)+section+html.slice(endTag):html+section;
+ }
+ // Link the same cast to new published internal people profiles; no invented URLs.
+ const people=cast.filter(p=>p&&Number.isSafeInteger(p.id)&&p.name);
+ let profiles='<section class="inext-media__section inext-cast-links"><h3>Cast profiles</h3><ul class="inext-cast-list">';
+ people.slice(0,10).forEach(p=>{
+  const inside=index.people[String(p.id)],url=inside||'https://www.themoviedb.org/person/'+p.id;
+  profiles+='<li><a href="'+esc_(url)+'"'+(inside?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(p.name)+'</a>'+
+   (p.character?'<span>as '+esc_(p.character)+'</span>':'')+'</li>';
+ });
+ profiles+='</ul></section>';
+ const ps='<!--INEXT_CAST_LINKS_START-->',pe='<!--INEXT_CAST_LINKS_END-->';
+ const aa=html.indexOf(ps),bb=html.indexOf(pe),part=ps+profiles+pe;
+ if(aa>=0&&bb>aa)html=html.slice(0,aa)+part+html.slice(bb+pe.length);
+ else{
+  const endTag=html.lastIndexOf('</article>');
+  html=endTag>=0?html.slice(0,endTag)+part+html.slice(endTag):html+part;
+ }
+ return {html:html,castCount:people.length,internalCast:internalCast};
+}
+/**
+ * First run: read-only by default. INEXT_DB_DRY_RUN=no explicitly permits
+ * up to six existing published media posts to be enriched in place.
+ * Preserves all existing post text and appends idempotent related/cast sections.
+ */
+function upgradePublishedMovieDatabase(){
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('Rights flag must be yes for TMDB-derived content.');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(5000))throw new Error('Another database update is running.');
+ try{
+  const index=dbIndex_(),dry=props_().getProperty('INEXT_DB_DRY_RUN')!=='no',result=[];
+  for(const key of Object.keys(index.media).slice(0,6)){
+   const entry=index.media[key],pair=key.split(':');
+   const detail=tmdb_(pair[0]+'/'+pair[1]+'?append_to_response=credits');
+   const enhanced=dbEnhanceHtml_(entry.content,detail,key,index);
+   if(enhanced.html===entry.content){result.push({title:entry.title,status:'unchanged'});continue;}
+   if(dry){result.push({title:entry.title,status:'dry_run',castCount:enhanced.castCount,
+     availableRelatedPosts:Object.keys(index.media).filter(k=>k!==key&&k.indexOf(pair[0]+':')===0).length});continue;}
+   const response=UrlFetchApp.fetch(index.root+'/posts/'+encodeURIComponent(entry.id),{
+    method:'put',contentType:'application/json',
+    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+    payload:JSON.stringify({kind:'blogger#post',id:entry.id,title:entry.title,content:enhanced.html,labels:entry.labels||[]}),
+    muteHttpExceptions:true,followRedirects:false
+   });
+   if(response.getResponseCode()!==200){
+    result.push({title:entry.title,status:'error',httpStatus:response.getResponseCode()});break;
+   }
+   result.push({title:entry.title,status:'updated',url:entry.url,castCount:enhanced.castCount});
+   Utilities.sleep(1100);
+  }
+  Logger.log('DATABASE ENHANCEMENT '+(dry?'DRY RUN':'LIVE UPDATE'));
+  Logger.log(JSON.stringify(result,null,2));return result;
+ }finally{lock.releaseLock();}
+}
+/**
+ * Draft up to three person profiles. After manual publication, run the
+ * database upgrade again to switch cast-profile links to internal URLs.
+ */
+function preparePersonProfileDrafts(){
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('Review people biography and photo rights.');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(5000))throw new Error('Already creating profiles.');
+ try{
+  const x=dbIndex_(),drafts=bloggerListAudit_(x.root+'/posts?status=draft&maxResults=100',300);
+  if(drafts.truncated)throw new Error('Draft inventory truncated.');
+  const known={...x.people},result=[],seen={};
+  drafts.items.forEach(p=>{const m=String(p.content||'').match(/data-inext-person-id=["'](\d+)["']/);if(m)known[m[1]]=p.id;});
+  for(const key of Object.keys(x.media).slice(0,3)){
+   if(result.filter(a=>a.status==='created_draft').length>=3)break;
+   const bits=key.split(':'),detail=tmdb_(bits[0]+'/'+bits[1]+'?append_to_response=credits');
+   for(const cast of (detail.credits&&detail.credits.cast||[]).slice(0,5)){
+    if(result.filter(a=>a.status==='created_draft').length>=3)break;
+    if(!cast.id||seen[cast.id]||known[cast.id])continue;
+    seen[cast.id]=1;
+    const p=tmdb_('person/'+cast.id+'?append_to_response=combined_credits');
+    if(!p.name||String(p.biography||'').length<120){result.push({id:cast.id,status:'insufficient_biography'});continue;}
+    const photo=p.profile_path&&/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(p.profile_path)?
+      'https://image.tmdb.org/t/p/w342'+p.profile_path:'';
+    let body='<article class="inext-person-profile" data-inext-person-id="'+p.id+'"><h2>'+esc_(p.name)+
+      ' — Biography and Filmography</h2>'+
+      (photo?'<img src="'+esc_(photo)+'" alt="'+esc_(p.name)+'" loading="lazy" width="230" height="345"/>':'')+
+      '<p><strong>Known for:</strong> '+esc_(p.known_for_department||'Entertainment')+'</p>'+
+      '<h3>Biography</h3><p>'+esc_(p.biography)+'</p><h3>Selected Filmography</h3><ul>';
+    for(const f of ((p.combined_credits&&p.combined_credits.cast)||[]).filter(f=>f.media_type==='movie'||f.media_type==='tv').slice(0,12)){
+     const internal=x.media[f.media_type+':'+f.id],url=internal?internal.url:'https://www.themoviedb.org/'+f.media_type+'/'+f.id;
+     body+='<li><a href="'+esc_(url)+'"'+(internal?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(f.title||f.name||'Untitled')+'</a></li>';
+    }
+    body+='</ul><p>Source: <a href="https://www.themoviedb.org/person/'+p.id+'">TMDB profile</a></p>'+
+      '<p><strong>Editorial review required before publishing:</strong> Verify bio and image rights, add original context, then remove this message.</p></article>';
+    const created=bloggerInsertDraft_({kind:'blogger#post',title:p.name+' — Biography and Filmography',
+      content:body,labels:['People','TMDB']});
+    if(!created||!created.id)throw new Error('No draft ID returned for '+p.name);
+    known[String(p.id)]=created.id;
+    result.push({name:p.name,id:p.id,draftId:created.id,status:'created_draft'});
+    Utilities.sleep(1100);
+   }
+  }
+  Logger.log(JSON.stringify(result,null,2));return result;
+ }finally{lock.releaseLock();}
 }
