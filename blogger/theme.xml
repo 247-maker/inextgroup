@@ -333,6 +333,14 @@ body.item-view .comment-form-container{display:none!important}
 body.item-view .inext-seasons-grid{grid-template-columns:1fr}
 body.item-view .inext-season-card summary img{width:80px!important;height:114px!important;object-fit:cover}
 @media(max-width:470px){.inext-episode-card{grid-template-columns:1fr}.inext-episode-card img{width:100%!important;height:auto!important;aspect-ratio:16/9}}
+
+/* Main hero makes overview and the actual official video immediately actionable. */
+.inext-pro-summary .inext-hero-overview{color:#e4eff8;line-height:1.72;max-width:800px;font-size:15px;margin:15px 0 14px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.inext-hero-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.inext-hero-trailer{display:inline-flex;align-items:center;gap:7px;background:#18b99c;color:#092820!important;padding:11px 18px;border-radius:10px;font-size:14px;font-weight:850;text-decoration:none!important}
+.inext-hero-trailer:hover,.inext-hero-trailer:focus-visible{background:#7aefd8;color:#061c17!important}
+body.item-view .inext-pro-hero{min-height:420px}
+@media(max-width:760px){body.item-view .inext-pro-hero{min-height:0}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
