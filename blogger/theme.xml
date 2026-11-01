@@ -320,11 +320,16 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
       var title=(titleAnchor.textContent||'').trim();
       if (!title) return;
       var labels=Array.prototype.map.call(post.querySelectorAll('.post-labels a, a[rel="tag"]'),function(a){return (a.textContent||'').trim().toLowerCase();});
-      var isTv=labels.indexOf('tv shows')!==-1 || !!post.querySelector('.inext-media__eyebrow') && /tv show/i.test(post.querySelector('.inext-media__eyebrow').textContent);
-      var isMovie=labels.indexOf('movies')!==-1 || !!post.querySelector('.inext-media__eyebrow') && /movie information/i.test(post.querySelector('.inext-media__eyebrow').textContent);
-      var poster=post.querySelector('.inext-media__poster img, .inext-movie img, .post-body img');
-      var rating=post.querySelector('.inext-media__rating');
-      var dateText=(post.querySelector('.inext-media__facts li')||{}).textContent||'';
+      var proType=(post.querySelector('.inext-pro-kicker')||{}).textContent||'';
+      var legacyType=(post.querySelector('.inext-media__eyebrow')||{}).textContent||'';
+      var isPerson=labels.indexOf('people')!==-1 || !!post.querySelector('.inext-person-profile');
+      var isTv=labels.indexOf('tv shows')!==-1 || /^(?:tv series|tv show)/i.test(proType+' '+legacyType);
+      var isMovie=!isPerson && (labels.indexOf('movies')!==-1 && labels.indexOf('viewing guides')===-1 ||
+        /^movie(?: information| ·)/i.test(proType+' '+legacyType));
+      var poster=post.querySelector('.inext-pro-cover img, .inext-media__poster img, .inext-movie img, .post-body img');
+      var rating=post.querySelector('.inext-pro-rating, .inext-media__rating');
+      var dateNode=post.querySelector('.inext-pro-pills, .inext-media__facts li');
+      var dateText=dateNode?(dateNode.textContent||''):'';
       var record={href:titleAnchor.href,title:title,poster:poster?poster.getAttribute('src'):'',type:isTv?'TV show':isMovie?'Movie':'Article',rating:rating?(rating.textContent||'').trim():'',labels:labels,year:/\b(19|20)\d{2}\b/.test(dateText)?(dateText.match(/\b(19|20)\d{2}\b/)||[])[0]:''};
       catalog.push(record);
       feeds.latest.push(record);
@@ -377,7 +382,7 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
     function setupCatalogue() {
       var yearSelect=document.getElementById('inext-catalog-year');
       var genreSelect=document.getElementById('inext-catalog-genre');
-      var years={},genres={},skip={'movies':1,'tv shows':1,'trending':1,'tmdb':1,'internal test':1};
+      var years={},genres={},skip={'movies':1,'tv shows':1,'people':1,'viewing guides':1,'trending':1,'tmdb':1,'inext backup':1,'internal test':1};
       catalog.forEach(function(x){
         if(x.year)years[x.year]=true;
         x.labels.forEach(function(label){if(label&&!skip[label])genres[label]=true;});
