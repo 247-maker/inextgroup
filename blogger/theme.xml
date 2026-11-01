@@ -104,11 +104,7 @@ body.inext-home-ready .layout>aside{display:none}
 @media(max-width:760px){.inext-catalog-filters{grid-template-columns:1fr 1fr}.inext-catalog-filters input{grid-column:1/-1}}
 @media(max-width:450px){.inext-catalog-filters{grid-template-columns:1fr}.inext-catalog-filters input{grid-column:auto}}
 
-/* Editorial legal pages, transparent sponsorships and optional ad slots. */
-.inext-affiliate-notice{padding:12px 16px;margin:18px 0;border-left:3px solid var(--accent);background:#13282b;color:#e5fff8;border-radius:0 9px 9px 0;font-size:14px}
-.inext-affiliate-box{padding:18px;background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:18px 0}
-.inext-affiliate-box small{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:1px;font-weight:800}
-.inext-affiliate-box a{display:inline-block;margin-top:10px;padding:10px 14px;background:var(--accent);color:#06281f;border-radius:9px;font-weight:800}
+/* Editorial information pages and optional display-ad slots (no affiliate marketing). */
 .inext-ad-slot{margin:22px 0;min-height:80px}
 .inext-ad-slot:empty{display:none}
 .inext-footer-pages{width:100%;border-top:1px solid var(--border);padding-top:14px}
@@ -258,6 +254,7 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
 <a expr:href='data:blog.homepageUrl + &quot;search/label/Movies&quot;'>Movies</a>
 <a expr:href='data:blog.homepageUrl + &quot;search/label/TV%20Shows&quot;'>TV Shows</a>
 <a expr:href='data:blog.homepageUrl + &quot;search/label/People&quot;'>People</a>
+<a expr:href='data:blog.homepageUrl + &quot;search/label/Viewing%20Guides&quot;'>Guides</a>
 </nav>
 <form action='/search' class='search' method='get' role='search'><input aria-label='Search titles' name='q' placeholder='Search movies and shows...' required='required' type='search'/><button type='submit'>Search</button></form>
 </div></header>
@@ -472,6 +469,43 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
     if(imageUrl)entity.image=imageUrl;
     if(genre.length)entity.genre=genre;
     if(sameAs)entity.sameAs=sameAs;
+    // Use only actually visible cast, crew and runtime on this published article.
+    var actorNodes=entry.querySelectorAll('.inext-pro-person');
+    var actors=[];
+    Array.prototype.forEach.call(actorNodes,function(node){
+      var nameEl=node.querySelector('.inext-pro-person-name');
+      if(!nameEl)return;
+      var actorName=(nameEl.textContent||'').trim();
+      if(!actorName)return;
+      var obj={'@type':'Person',name:actorName};
+      var internal=node.querySelector('a.inext-pro-person-name[href]');
+      if(internal){
+        try{var link=new URL(internal.getAttribute('href'),pageUrl);
+          if(link.origin===new URL(pageUrl).origin)obj.url=link.href;
+        }catch(err){}
+      }
+      actors.push(obj);
+    });
+    if(actors.length)entity.actor=actors;
+    var info=entry.querySelectorAll('.inext-info-tile');
+    Array.prototype.forEach.call(info,function(node){
+      var dt=node.querySelector('dt'),dd=node.querySelector('dd');
+      if(!dt||!dd)return;
+      var label=(dt.textContent||'').trim().toLowerCase();
+      var value=(dd.textContent||'').trim();
+      if(!value)return;
+      if(label==='director')entity.director=value.split(',').map(function(n){
+        return {'@type':'Person',name:n.trim()};
+      }).filter(function(n){return n.name;});
+      if(label==='production countries')entity.countryOfOrigin=value.split(',').map(function(n){
+        return {'@type':'Country',name:n.trim()};
+      }).filter(function(n){return n.name;});
+    });
+    var durationText=entry.querySelector('.inext-pro-pills');
+    if(durationText){
+      var runtimeMatch=(durationText.textContent||'').match(/\b(\d{1,3})\s*min\b/i);
+      if(runtimeMatch && Number(runtimeMatch[1])>0)entity.duration='PT'+Number(runtimeMatch[1])+'M';
+    }
     // Rating is intentionally excluded: vote count and score provenance aren't reliably present in HTML.
     var script=document.createElement('script');
     script.type='application/ld+json';
