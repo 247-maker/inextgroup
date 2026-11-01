@@ -272,7 +272,7 @@ body.item-view .layout>section{width:100%;min-width:0}
 body.item-view .blog-posts .post{padding:0!important}
 body.item-view .blog-posts .post-outer,body.item-view .blog-posts .post-outer-container{border:0!important;background:transparent!important;overflow:visible!important}
 body.item-view .blog-posts .post-body{color:#d4e3ef}
-body.item-view .post-title{display:none!important}
+body.item-view:has(.inext-pro-media) .post-title{display:none!important}
 body.item-view .inext-pro-banner{border:0;border-radius:16px;min-height:370px;box-shadow:inset 0 -50px 90px #091521}
 body.item-view .inext-pro-hero{max-width:1220px;margin:auto;grid-template-columns:235px minmax(0,1fr);gap:35px;padding:36px}
 body.item-view .inext-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 268px;align-items:start;gap:30px;min-width:0;margin:25px 0}
@@ -719,9 +719,8 @@ body.item-view .inext-pro-hero{min-height:420px}
     add('overview',root.querySelector('#inext-overview'));
     add('overview',root.querySelector('.inext-verified'));
     add('overview',root.querySelector('#inext-facts'));
-    Array.prototype.forEach.call(root.children,function(node){
-      if(node.classList && node.classList.contains('inext-pro-section') && node.querySelector('h3') &&
-          /Topics & Keywords/i.test(node.querySelector('h3').textContent||'')) add('overview',node);
+    Array.prototype.forEach.call(root.querySelectorAll('.inext-detail-main > .inext-pro-section'),function(node){
+      if(node.querySelector('h3') && /Topics & Keywords/i.test(node.querySelector('h3').textContent||''))add('details',node);
     });
     add('cast',root.querySelector('#inext-cast'));
     add('cast',root.querySelector('#inext-crew'));
