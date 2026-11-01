@@ -273,3 +273,65 @@ function previewHomepageCatalog() {
   Logger.log('No Blogger content was created or published.');
   return output;
 }
+
+
+/**
+ * Read-only public Blogger SEO endpoint audit.
+ * Optional Script Property PUBLIC_SITE_URL defaults to https://inextcloud.blogspot.com.
+ * No TMDB token, Blogger post writes or publishing in this function.
+ */
+function auditPublicSeoEndpoints() {
+  const value=(props_().getProperty('PUBLIC_SITE_URL')||'https://inextcloud.blogspot.com').trim();
+  if (!/^https:\/\/[a-z0-9.-]+\/?$/i.test(value)) throw new Error('Use a public HTTPS origin without a path in PUBLIC_SITE_URL.');
+  const host=value.replace(/^https:\/\//i,'').replace(/\/$/,'').toLowerCase();
+  if (host==='localhost' || !host.includes('.') || /^(?:\d+\.){3}\d+$/.test(host) || host.endsWith('.local') || host.endsWith('.internal')) throw new Error('PUBLIC_SITE_URL must use a public DNS hostname.');
+  const origin='https://'+host;
+  const targets=[
+    {name:'Homepage',path:'/',kind:'html'},
+    {name:'robots.txt',path:'/robots.txt',kind:'robots'},
+    {name:'Post sitemap',path:'/sitemap.xml',kind:'xml'},
+    {name:'Page sitemap',path:'/sitemap-pages.xml',kind:'xml'}
+  ];
+  const results=[];
+  for(const target of targets) {
+    const url=origin+target.path;
+    try {
+      const response=UrlFetchApp.fetch(url,{muteHttpExceptions:true,followRedirects:false});
+      const status=response.getResponseCode();
+      const body=response.getContentText()||'';
+      const result={name:target.name,url:url,httpStatus:status};
+      if(status===200) {
+        if(target.kind==='html') {
+          const links=body.match(/<link\b[^>]*>/gi)||[];
+          const canonical=links.filter(x=>/\brel\s*=\s*["']canonical["']/i.test(x));
+          result.canonicalCount=canonical.length;
+          const href=canonical.length?canonical[0].match(/\bhref\s*=\s*["']([^"']+)["']/i):null;
+          result.canonicalUrl=href?href[1]:null;
+          const metas=body.match(/<meta\b[^>]*>/gi)||[];
+          result.hasDescription=metas.some(x=>/\bname\s*=\s*["']description["']/i.test(x));
+          result.robotsMeta=metas.filter(x=>/\bname\s*=\s*["']robots["']/i.test(x)).slice(0,1);
+          result.hasTitle=/<title\b[^>]*>[^<]+<\/title>/i.test(body);
+        } else if(target.kind==='robots') {
+          result.hasUserAgent=/^\s*User-agent\s*:/im.test(body);
+          result.hasSitemapDirective=/^\s*Sitemap\s*:/im.test(body);
+          result.sample=body.slice(0,400);
+        } else {
+          result.appearsXml=/^\s*(?:<\?xml[^>]*>\s*)?<(?:urlset|sitemapindex)(?:\s|>)/i.test(body);
+          result.locCount=(body.match(/<loc>/g)||[]).length;
+        }
+      } else {
+        const headers=response.getAllHeaders()||{};
+        const key=Object.keys(headers).find(k=>k.toLowerCase()==='location');
+        if(key)result.redirectLocation=String(headers[key]).slice(0,300);
+        result.note='Review response manually; non-200 alone does not prove indexing failure.';
+      }
+      results.push(result);
+    } catch(e) {
+      results.push({name:target.name,url:url,error:String(e.message||e).slice(0,300)});
+    }
+  }
+  Logger.log('PUBLIC BLOGGER SEO ENDPOINT AUDIT — READ ONLY');
+  Logger.log(JSON.stringify(results,null,2));
+  Logger.log('These checks do not verify Google indexing, policy compliance, or TMDB commercial rights.');
+  return results;
+}
