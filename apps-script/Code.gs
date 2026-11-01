@@ -1451,26 +1451,50 @@ function professionalTvSeasonsHtml_(d){
  if(!Array.isArray(d.seasons)||!d.seasons.length)return '';
  const e=esc_;
  const img=p=>p&&/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(p)?'https://image.tmdb.org/t/p/w342'+p:'';
- let html='<section id="inext-seasons" class="inext-pro-section"><h3>Seasons &amp; Episodes</h3><p class="inext-pro-caption">Episode counts and dates come from available TMDB series metadata. Individual episode profiles are listed only when published on INEXTGROUP.</p><div class="inext-seasons-grid">';
+ // Fetch the most recently listed regular season details when running in Apps Script.
+ // A failed API call leaves the other season cards intact.
+ let selected=null;
+ const regular=d.seasons.filter(x=>Number.isSafeInteger(x.season_number)&&x.season_number>0);
+ if(regular.length)selected=regular.sort((a,b)=>b.season_number-a.season_number)[0];
+ let seasonDetail=null;
+ if(selected && typeof UrlFetchApp!=='undefined'){
+  try{seasonDetail=tmdb_('tv/'+encodeURIComponent(d.id)+'/season/'+selected.season_number);}
+  catch(err){if(typeof Logger!=='undefined')Logger.log('Season episode details unavailable: '+String(err.message||err));}
+ }
+ let html='<section id="inext-seasons" class="inext-pro-section"><h3>Seasons &amp; Episodes</h3><p class="inext-pro-caption">Episode titles and air dates reflect available TMDB records; upcoming schedules can change. INEXTGROUP does not provide streaming.</p><div class="inext-seasons-grid">';
  for(const season of d.seasons.slice(0,24)){
   if(!Number.isSafeInteger(season.season_number))continue;
   const name=String(season.name||'Season '+season.season_number),poster=img(season.poster_path);
-  const episodes=Number.isSafeInteger(season.episode_count)?season.episode_count:null;
+  const episodeCount=Number.isSafeInteger(season.episode_count)?season.episode_count:null;
   const date=/^\d{4}-\d{2}-\d{2}$/.test(season.air_date||'')?season.air_date:'';
-  html+='<details class="inext-season-card"><summary>'+
+  const isSelected=!!(selected && selected.season_number===season.season_number);
+  html+='<details class="inext-season-card"'+(isSelected?' open="open"':'')+'><summary>'+
     (poster?'<img src="'+e(poster)+'" alt="'+e(name)+' poster" width="95" height="142" loading="lazy"/>':'<span class="inext-season-fallback" aria-hidden="true">TV</span>')+
     '<span><strong>'+e(name)+'</strong>'+
     (date?'<small>First aired: '+e(date)+'</small>':'')+
-    (episodes!==null?'<small>'+episodes+' episode(s)</small>':'')+
+    (episodeCount!==null?'<small>'+episodeCount+' episode(s)</small>':'')+
     '</span><span class="inext-season-expander" aria-hidden="true">+</span></summary>'+
-    (season.overview?'<div class="inext-season-description"><p>'+e(season.overview)+'</p></div>':
-      '<div class="inext-season-description"><p>No official season summary is currently available.</p></div>')+
-    '</details>';
+    '<div class="inext-season-description">'+
+    (season.overview?'<p>'+e(season.overview)+'</p>':'<p>No season summary is currently available.</p>');
+  const episodes=isSelected&&seasonDetail&&Array.isArray(seasonDetail.episodes)?seasonDetail.episodes.slice(0,24):[];
+  if(episodes.length){
+    html+='<div class="inext-episode-list">';
+    for(const episode of episodes){
+      if(!Number.isSafeInteger(episode.episode_number))continue;
+      const image=img(episode.still_path),air=/^\d{4}-\d{2}-\d{2}$/.test(episode.air_date||'')?episode.air_date:'';
+      html+='<article class="inext-episode-card">'+
+        (image?'<img src="'+e(image)+'" alt="'+e(episode.name||'Episode')+' still image" width="150" height="85" loading="lazy"/>':'')+
+        '<div><strong>E'+episode.episode_number+' · '+e(episode.name||'Episode '+episode.episode_number)+'</strong>'+
+        '<small>'+[air,Number.isFinite(episode.runtime)&&episode.runtime>0?episode.runtime+' min':''].filter(Boolean).map(e).join(' · ')+'</small>'+
+        (episode.overview?'<p>'+e(episode.overview)+'</p>':'')+'</div></article>';
+    }
+    html+='</div>';
+  }
+  html+='</div></details>';
  }
  html+='</div></section>';
  return html;
 }
-
 
 /** Desktop-right/mobile-below details rail modelled on TMDB information hierarchy. */
 function professionalDetailsSidebar_(d,type){
