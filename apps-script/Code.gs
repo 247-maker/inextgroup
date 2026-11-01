@@ -223,8 +223,7 @@ function detailExtrasHtml_(detail,type) {
   if (cast.length) {
     extra+='<h3>Cast</h3><ul class="inext-cast-list">';
     for (const person of cast) {
-      const target=Number.isSafeInteger(person.id)?'https://www.themoviedb.org/person/'+person.id:null;
-      extra+='<li><strong>'+(target?'<a href="'+esc_(target)+'" target="_blank" rel="noopener noreferrer">'+esc_(person.name)+'</a>':esc_(person.name))+'</strong>'+
+      extra+='<li'+(Number.isSafeInteger(person.id)?' data-inext-person-id="'+person.id+'"':'')+'><strong>'+esc_(person.name)+'</strong>'+
         (person.character?' <span>as '+esc_(person.character)+'</span>':'')+'</li>';
     }
     extra+='</ul>';
@@ -714,42 +713,50 @@ function dbRelated_(key,index){
 function dbEnhanceHtml_(content,detail,key,index){
  let html=String(content||'');
  const cast=(detail.credits&&detail.credits.cast||[]).slice(0,12);
- let internalCast=0,linked=0;
+ let internalCast=0;
+ // Remove previously generated sections before upgrading (idempotent).
+ for(const pair of [['<!--INEXT_RELATED_START-->','<!--INEXT_RELATED_END-->'],
+                    ['<!--INEXT_CAST_LINKS_START-->','<!--INEXT_CAST_LINKS_END-->']]){
+  const a=html.indexOf(pair[0]),b=html.indexOf(pair[1]);
+  if(a>=0&&b>a)html=html.slice(0,a)+html.slice(b+pair[1].length);
+ }
+ // Rewrite original cast-list entries by TMDB person ID, where available.
+ // Unknown people are readable text: never send users outside INEXTGROUP.
+ html=html.replace(/<li\b([^>]*data-inext-person-id=["'](\d+)["'][^>]*)>([\s\S]*?)<\/li>/gi,function(full,attrs,id,inside){
+  const actor=index.people[id];
+  const clean=inside.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi,'$1');
+  const first=clean.match(/<strong>([\s\S]*?)<\/strong>/i);
+  if(!first)return full;
+  if(actor){internalCast++;
+   return '<li'+attrs+'>'+clean.replace(first[0],'<strong><a href="'+esc_(actor)+'">'+first[1]+'</a></strong>')+'</li>';
+  }
+  return '<li'+attrs+'>'+clean+'</li>';
+ });
+ // Older posts had external TMDB actor links but no person-id attributes.
+ // Rebuild their original cast list conservatively when the names match.
  cast.forEach(p=>{
   if(!Number.isSafeInteger(p.id)||!p.name)return;
-  const inside=index.people[String(p.id)];
-  const url=inside||'https://www.themoviedb.org/person/'+p.id;
-  const anchor='<a href="'+esc_(url)+'"'+(inside?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(p.name)+'</a>';
-  const strong='<strong>'+esc_(p.name)+'</strong>';
-  if(html.includes(strong)){html=html.split(strong).join('<strong>'+anchor+'</strong>');linked++;if(inside)internalCast++;}
-  // Existing external links are preserved here; after a new profile is published a fresh cast-links module below links internally.
+  const actor=index.people[String(p.id)];
+  const encoded=esc_(p.name);
+  const existing='<strong>'+encoded+'</strong>';
+  if(!actor||!html.includes(existing))return;
+  html=html.replace(existing,'<strong><a href="'+esc_(actor)+'">'+encoded+'</a></strong>');
  });
- const start='<!--INEXT_RELATED_START-->',end='<!--INEXT_RELATED_END-->';
- const section=start+dbRelated_(key,index)+end;
- const a=html.indexOf(start),b=html.indexOf(end);
- if(a>=0&&b>a)html=html.slice(0,a)+section+html.slice(b+end.length);
- else{
-  const endTag=html.lastIndexOf('</article>');
-  html=endTag>=0?html.slice(0,endTag)+section+html.slice(endTag):html+section;
- }
- // Link the same cast to new published internal people profiles; no invented URLs.
- const people=cast.filter(p=>p&&Number.isSafeInteger(p.id)&&p.name);
- let profiles='<section class="inext-media__section inext-cast-links"><h3>Cast profiles</h3><ul class="inext-cast-list">';
- people.slice(0,10).forEach(p=>{
-  const inside=index.people[String(p.id)],url=inside||'https://www.themoviedb.org/person/'+p.id;
-  profiles+='<li><a href="'+esc_(url)+'"'+(inside?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(p.name)+'</a>'+
+ const related='<!--INEXT_RELATED_START-->'+dbRelated_(key,index)+'<!--INEXT_RELATED_END-->';
+ let profiles='<section class="inext-media__section inext-cast-links"><h3>Cast and profiles</h3><ul class="inext-cast-list">';
+ cast.slice(0,10).forEach(p=>{
+  if(!p||!p.name)return;
+  const actor=index.people[String(p.id)],display=esc_(p.name);
+  profiles+='<li>'+(actor?'<a href="'+esc_(actor)+'">'+display+'</a>':'<span>'+display+'</span>')+
    (p.character?'<span>as '+esc_(p.character)+'</span>':'')+'</li>';
  });
- profiles+='</ul></section>';
- const ps='<!--INEXT_CAST_LINKS_START-->',pe='<!--INEXT_CAST_LINKS_END-->';
- const aa=html.indexOf(ps),bb=html.indexOf(pe),part=ps+profiles+pe;
- if(aa>=0&&bb>aa)html=html.slice(0,aa)+part+html.slice(bb+pe.length);
- else{
-  const endTag=html.lastIndexOf('</article>');
-  html=endTag>=0?html.slice(0,endTag)+part+html.slice(endTag):html+part;
- }
- return {html:html,castCount:people.length,internalCast:internalCast};
+ profiles+='</ul><p>Actor names become clickable when their INEXTGROUP profiles are published.</p></section>';
+ const additions=related+'<!--INEXT_CAST_LINKS_START-->'+profiles+'<!--INEXT_CAST_LINKS_END-->';
+ const endTag=html.lastIndexOf('</article>');
+ html=endTag>=0?html.slice(0,endTag)+additions+html.slice(endTag):html+additions;
+ return {html:html,castCount:cast.length,internalCast:internalCast};
 }
+
 /**
  * First run: read-only by default. INEXT_DB_DRY_RUN=no explicitly permits
  * up to six existing published media posts to be enriched in place.
@@ -814,8 +821,8 @@ function preparePersonProfileDrafts(){
       '<p><strong>Known for:</strong> '+esc_(p.known_for_department||'Entertainment')+'</p>'+
       '<h3>Biography</h3><p>'+esc_(p.biography)+'</p><h3>Selected Filmography</h3><ul>';
     for(const f of ((p.combined_credits&&p.combined_credits.cast)||[]).filter(f=>f.media_type==='movie'||f.media_type==='tv').slice(0,12)){
-     const internal=x.media[f.media_type+':'+f.id],url=internal?internal.url:'https://www.themoviedb.org/'+f.media_type+'/'+f.id;
-     body+='<li><a href="'+esc_(url)+'"'+(internal?'':' target="_blank" rel="noopener noreferrer"')+'>'+esc_(f.title||f.name||'Untitled')+'</a></li>';
+     const internal=x.media[f.media_type+':'+f.id],name=esc_(f.title||f.name||'Untitled');
+     body+='<li>'+(internal?'<a href="'+esc_(internal.url)+'">'+name+'</a>':name)+'</li>';
     }
     body+='</ul><p>Source: <a href="https://www.themoviedb.org/person/'+p.id+'">TMDB profile</a></p>'+
       '<p><strong>Editorial review required before publishing:</strong> Verify bio and image rights, add original context, then remove this message.</p></article>';
