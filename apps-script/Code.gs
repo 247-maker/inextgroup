@@ -1678,12 +1678,17 @@ function inextScheduledTmdbSync(){
     }
     const post=JSON.parse(response.getContentText());
     if(!post.id)throw new Error('Blogger created post but did not return an ID for '+key);
+    // Confirm that the new post is actually LIVE, not just accepted as DRAFT.
+    // Blogger may return a draft when a legacy insert setting is still active.
+    const confirmed=mode==='publish'?inextEnsurePublished_(root,post):post;
+    if(mode==='publish'&&String(confirmed.status||'').toUpperCase()!=='LIVE')
+      throw new Error('Post '+post.id+' did not confirm LIVE status; do not count as published.');
     p.setProperty(inextAutoRecordKey_(type,m.id),String(post.id));
     existingTitles.add(postTitle.toLowerCase());existingKeys.add(key);
-    if(post.url)index.media[key]=post;
+    if(confirmed.url)index.media[key]=confirmed;
     count++;created++;
     p.setProperty('INEXT_AUTO_DAY_COUNT',String(count));
-    report.created.push({type:type,tmdbId:m.id,title:postTitle,postId:post.id,url:post.url||null,status:mode});
+    report.created.push({type:type,tmdbId:m.id,title:postTitle,postId:post.id,url:confirmed.url||null,status:mode});
     Utilities.sleep(1350);
    }catch(err){
     report.errors.push({key:key,error:String(err.message||err).slice(0,200)});
@@ -1700,4 +1705,83 @@ function inextScheduledTmdbSync(){
   Logger.log('INEXT AUTO TMDB SYNC '+JSON.stringify(report,null,2));
   lock.releaseLock();
  }
+}
+
+
+/**
+ * After creation, insist on verified LIVE status in publish mode.
+ * In draft mode no publication endpoint is called.
+ */
+function inextEnsurePublished_(root,post){
+  if(!post||!/^\d+$/.test(String(post.id||'')))throw new Error('Invalid new Blogger post ID');
+  let current=post;
+  const status=String(current.status||'').toUpperCase();
+  if(status!=='LIVE'){
+    if(status!=='DRAFT')throw new Error('Unexpected Blogger post status: '+status);
+    const response=UrlFetchApp.fetch(root+'/posts/'+encodeURIComponent(post.id)+'/publish',{
+      method:'post',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+      muteHttpExceptions:true,followRedirects:false
+    });
+    if(![200,201].includes(response.getResponseCode()))
+      throw new Error('Could not publish Blogger draft '+post.id+': HTTP '+response.getResponseCode()+
+        ' '+response.getContentText().slice(0,150));
+    current=JSON.parse(response.getContentText());
+  }
+  // Use the official Blogger post GET to ensure public status, not merely a URL field.
+  const verify=UrlFetchApp.fetch(root+'/posts/'+encodeURIComponent(post.id),{
+    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+    muteHttpExceptions:true,followRedirects:false
+  });
+  if(verify.getResponseCode()===200){
+    const readback=JSON.parse(verify.getContentText());
+    if(String(readback.status||'').toUpperCase()!=='LIVE')
+      throw new Error('Blogger post '+post.id+' not LIVE after publication');
+    return readback;
+  }
+  if(String(current.status||'').toUpperCase()!=='LIVE')
+    throw new Error('Blogger could not confirm LIVE post '+post.id);
+  return current;
+}
+/**
+ * Publish only qualified TMDB Movie/TV drafts, not backups, People profiles,
+ * editorial guide drafts, or drafts containing explicit editorial-review notes.
+ * Useful for records that were created as drafts by an older automation.
+ */
+function publishExistingTmdbDraftBatch(){
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')
+   throw new Error('TMDB commercial rights flag must be yes');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(3000))throw new Error('A Blogger write is already running');
+ try{
+  const root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(required_('BLOGGER_BLOG_ID'));
+  const inventory=bloggerListAudit_(root+'/posts?status=draft&maxResults=100',500);
+  if(inventory.truncated)throw new Error('Too many drafts; stop rather than publishing the wrong post');
+  const result=[];
+  for(const draft of inventory.items){
+   if(result.filter(x=>x.status==='published').length>=6)break;
+   const labels=(draft.labels||[]).map(x=>String(x).toLowerCase());
+   if(!labels.includes('tmdb')||(!labels.includes('movies')&&!labels.includes('tv shows')))continue;
+   if(labels.includes('inext backup'))continue;
+   if(!/inext-pro-media/.test(draft.content||''))continue;
+   if(/Editorial review required before publishing|This is an unreviewed TMDB metadata draft/i.test(draft.content||''))continue;
+   try{
+    const live=inextEnsurePublished_(root,draft);
+    result.push({status:'published',title:draft.title,url:live.url||null,id:draft.id});
+   }catch(err){
+    result.push({status:'failed',title:draft.title,error:String(err.message||err)});
+    break;
+   }
+   Utilities.sleep(1100);
+  }
+  Logger.log('PUBLISH EXISTING REVIEWED TMDB DRAFTS '+JSON.stringify(result,null,2));
+  return result;
+ }finally{lock.releaseLock();}
+}
+/** Diagnose installable triggers including older draft-only jobs. */
+function auditInextPublishingTriggers(){
+ const status=inextAutoPublishStatus();
+ status.allTriggers=ScriptApp.getProjectTriggers().map(t=>({
+  handler:t.getHandlerFunction(),eventType:String(t.getEventType())
+ }));
+ Logger.log(JSON.stringify(status,null,2));return status;
 }
