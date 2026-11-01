@@ -580,7 +580,7 @@ function prepareLicensedTmdbDraftBatch() {
         result.push({type:type,id:m.id,status:'skipped_existing'});continue;
       }
       if(!genreMaps[type])genreMaps[type]=genres_(type);
-      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
+      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
       const labels=[type==='movie'?'Movies':'TV Shows','TMDB']
         .concat((detail.genres||[]).map(g=>g.name).filter(Boolean).slice(0,4));
       const body=professionalMediaHtml_(detail,type,publishedIndex);
@@ -880,7 +880,7 @@ function professionalMediaHtml_(d,type,index) {
  if(genres.length)html+='<p class="inext-pro-genres">'+genres.map(e).join(' · ')+'</p>';
  if(leads.length)html+='<p><strong>'+(tv?'Created by':'Directed by')+':</strong> '+unique(leads).map(e).join(', ')+'</p>';
  html+='</div></div></div>';
- html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
+ html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-crew">Crew</a><a href="#inext-gallery">Gallery</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
  if(d.overview)html+='<section class="inext-pro-section" id="inext-overview"><h3>Story Overview</h3><p>'+e(d.overview)+'</p></section>';
  html+='<section class="inext-pro-section" id="inext-cast"><h3>Cast &amp; Characters</h3><div class="inext-pro-cast-grid">';
  for(const p of cast){
@@ -922,7 +922,7 @@ function professionalMediaHtml_(d,type,index) {
 function previewDogStarsProfessionalUpgrade(){
  const idx=dbIndex_(),target=idx.posts.find(p=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(p.url||''));
  if(!target)throw new Error('The Dog Stars published URL is not in the current Blogger inventory.');
- const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
+ const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
  const html=professionalMediaHtml_(detail,'movie',idx);
  const result={postId:target.id,url:target.url,title:target.title,
    oldHtmlCharacters:String(target.content||'').length,newHtmlCharacters:html.length,
@@ -947,7 +947,7 @@ function applyDogStarsProfessionalUpgrade(){
     props.setProperty(key,old);
     if(props.getProperty(key)!==old)throw new Error('Original post backup failed. No changes made.');
   }
-  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
+  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null');
   if(d.id!==1384216)throw new Error('Incorrect TMDB record returned.');
   const replacement=professionalMediaHtml_(d,'movie',idx);
   const url=idx.root+'/posts/'+encodeURIComponent(p.id);
@@ -1052,4 +1052,84 @@ function professionalSupplementHtml_(d,type,index){
   html+='</ul></section>';
  }
  return html;
+}
+
+
+/**
+ * Backup a live post as a PRIVATE Blogger draft and verify it exists.
+ * Never overwrite a published post unless the backup has been persisted.
+ */
+function inextBackupPublishedPost_(index,p){
+  const marker='INEXT_PRO_BACKUP_'+p.id;
+  const prior=props_().getProperty(marker);
+  if(prior)return prior;
+  const snapshot=bloggerInsertDraft_({
+    kind:'blogger#post',
+    title:'INTERNAL BACKUP — '+String(p.title||'Untitled').slice(0,100)+' — '+p.id,
+    content:p.content||'',
+    labels:['INEXT Backup']
+  });
+  if(!snapshot||!snapshot.id)throw new Error('No backup draft ID. Live post unchanged.');
+  const verify=UrlFetchApp.fetch(index.root+'/posts/'+encodeURIComponent(snapshot.id),{
+    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+    muteHttpExceptions:true,followRedirects:false
+  });
+  if(verify.getResponseCode()!==200)throw new Error('Backup verification failed; live post unchanged.');
+  const saved=JSON.parse(verify.getContentText());
+  if(String(saved.content||'')!==String(p.content||''))
+    throw new Error('Backup body verification mismatch; live post unchanged.');
+  props_().setProperty(marker,String(snapshot.id));
+  return String(snapshot.id);
+}
+
+/**
+ * One run updates up to 6 existing published MOVIE/TV pages.
+ * Starts with The Dog Stars if found, then other media records.
+ * Uses private verified Blogger draft backups before every overwrite;
+ * preserves title, labels and original post URL. Updates metadata from API.
+ * Existing custom editorial additions must be restored from backup if needed.
+ */
+function upgradePublishedMovieDetailsBatch(){
+  if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')
+    throw new Error('Owner commercial permission flag is not enabled.');
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(5000))throw new Error('Already upgrading movie details.');
+  try{
+    const idx=dbIndex_();
+    const keys=Object.keys(idx.media).sort((a,b)=>
+      (a==='movie:1384216'?-1:b==='movie:1384216'?1:0)-
+      (b==='movie:1384216'?-1:a==='movie:1384216'?1:0));
+    const result=[];
+    const query='?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews&include_image_language=en,null';
+    for(const key of keys.slice(0,6)){
+      const p=idx.media[key],parts=key.split(':'),type=parts[0],id=Number(parts[1]);
+      if(!p.url)continue;
+      const detail=tmdb_(type+'/'+id+query);
+      if(Number(detail.id)!==id)throw new Error('Wrong TMDB detail ID for '+key);
+      const newBody=professionalMediaHtml_(detail,type,idx);
+      if(!newBody.includes('inext-pro-banner')||newBody.length<1300)throw new Error('Unexpected detail HTML for '+key);
+      if(newBody===p.content){result.push({title:p.title,status:'unchanged',url:p.url});continue;}
+      const backup=inextBackupPublishedPost_(idx,p);
+      const response=UrlFetchApp.fetch(idx.root+'/posts/'+encodeURIComponent(p.id),{
+        method:'put',contentType:'application/json',
+        headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+        payload:JSON.stringify({kind:'blogger#post',id:p.id,title:p.title,
+          content:newBody,labels:p.labels||[]}),
+        muteHttpExceptions:true,followRedirects:false
+      });
+      if(response.getResponseCode()!==200){
+        result.push({title:p.title,status:'failed',httpStatus:response.getResponseCode(),backupDraftId:backup});
+        Logger.log(JSON.stringify(result,null,2));
+        throw new Error('Stopped batch at '+key+' after '+result.length+' item(s).');
+      }
+      const updated=JSON.parse(response.getContentText());
+      result.push({title:p.title,status:'updated',url:updated.url||p.url,
+        backupDraftId:backup,castCount:((detail.credits||{}).cast||[]).length,
+        photoCount:((detail.images||{}).backdrops||[]).length});
+      Utilities.sleep(1250);
+    }
+    Logger.log('PROFESSIONAL MOVIE/TV UPGRADE COMPLETE');
+    Logger.log(JSON.stringify(result,null,2));
+    return result;
+  }finally{lock.releaseLock();}
 }
