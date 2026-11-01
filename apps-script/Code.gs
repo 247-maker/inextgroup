@@ -907,6 +907,7 @@ function professionalMediaHtml_(d,type,index) {
  if(videos.length)videos.forEach(v=>{html+='<p><a class="inext-pro-trailer" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer">▶ '+e(v.name||'Watch official trailer')+'</a></p>';});
  else html+='<p>No verified official trailer was returned by the API for this record.</p>';
  html+='</section>';
+ html+=professionalVerifiedEditorial_(d,type);
  html+=professionalSupplementHtml_(d,type,item);
  const currentKey=type+':'+d.id;
  // Reuse the verified first-party related-post graph; never create fake links.
@@ -1124,4 +1125,26 @@ function upgradePublishedMovieDetailsBatch(){
     Logger.log(JSON.stringify(result,null,2));
     return result;
   }finally{lock.releaseLock();}
+}
+
+
+/**
+ * Independent editorial fact box only when checked against a primary source.
+ * This does NOT override TMDB data or assume worldwide release timing.
+ * Studio reference: 20th Century Studios, The Dog Stars movie page.
+ */
+function professionalVerifiedEditorial_(detail,type){
+ if(type!=='movie'||Number(detail.id)!==1384216)return '';
+ return '<section class="inext-pro-section inext-verified" id="inext-verified">'+
+  '<h3>Official Studio-Verified Information</h3>'+
+  '<p><strong>The Dog Stars</strong> is a Ridley Scott-directed post-apocalyptic thriller adapted from Peter Heller’s novel. The film follows a pilot who sets out after receiving a mysterious radio transmission in a devastated world.</p>'+
+  '<dl class="inext-pro-info-grid">'+
+  '<div class="inext-info-tile"><dt>US theatrical release</dt><dd>August 28, 2026</dd></div>'+
+  '<div class="inext-info-tile"><dt>Studio-listed runtime</dt><dd>1 hour 58 minutes</dd></div>'+
+  '<div class="inext-info-tile"><dt>US rating</dt><dd>R</dd></div>'+
+  '<div class="inext-info-tile"><dt>Director</dt><dd>Ridley Scott</dd></div>'+
+  '<div class="inext-info-tile"><dt>Screenplay</dt><dd>Mark L. Smith</dd></div>'+
+  '</dl><p class="inext-pro-caption">These are US studio details, not a guarantee of release dates in other countries. '+
+  '<a href="https://www.20thcenturystudios.com/movies/the-dog-stars" target="_blank" rel="noopener noreferrer">Official 20th Century Studios source</a>.</p>'+
+  '</section>';
 }
