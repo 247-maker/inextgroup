@@ -335,3 +335,93 @@ function auditPublicSeoEndpoints() {
   Logger.log('These checks do not verify Google indexing, policy compliance, or TMDB commercial rights.');
   return results;
 }
+
+
+/**
+ * One-click prelaunch report. READ ONLY: lists published Blogger posts and
+ * pages, tests public SEO endpoints, and flags obvious editorial gaps.
+ * Does NOT call TMDB, create drafts, publish, or change Blogger settings.
+ */
+function runFullSiteReadinessAudit() {
+  const blogId=required_('BLOGGER_BLOG_ID');
+  const root=SETTINGS.bloggerBase+'/blogs/'+encodeURIComponent(blogId);
+  const published=bloggerListAudit_(root+'/posts?status=live&maxResults=100',300);
+  const pages=bloggerListAudit_(root+'/pages?status=live&maxResults=100',100);
+  const seo=auditPublicSeoEndpoints();
+  const problems=[];
+  const summaries=[];
+  const seen={};
+  for(const post of published.items){
+    const title=String(post.title||'').trim();
+    const content=String(post.content||'');
+    const labels=(post.labels||[]).map(x=>String(x).toLowerCase());
+    const isMedia=labels.includes('movies')||labels.includes('tv shows');
+    const chars=stripHtmlAudit_(content).length;
+    const issues=[];
+    if(!title)issues.push('missing title');
+    if(chars<350)issues.push('short rendered content ('+chars+' chars)');
+    if(/(?:do not publish|fictional content|layout test|internal test)/i.test(title+' '+content.slice(0,300)))issues.push('TEST CONTENT: review immediately');
+    if(isMedia&&!/inext-media__hero/.test(content))issues.push('movie/TV label but no detail layout');
+    if(isMedia&&!/overview|summary/i.test(content))issues.push('check original editorial context');
+    if(!post.url)issues.push('missing public post URL');
+    const normalized=title.toLowerCase();
+    if(seen[normalized])issues.push('duplicate title');
+    seen[normalized]=true;
+    if(issues.length)problems.push({title:title.slice(0,120),url:post.url||null,issues:issues});
+    summaries.push({title:title.slice(0,90),labels:labels.slice(0,5),chars:chars});
+  }
+  const sitemap=seo.find(x=>x.name==='Post sitemap');
+  const pageSitemap=seo.find(x=>x.name==='Page sitemap');
+  const report={
+    generatedAt:new Date().toISOString(),
+    blogId:blogId,
+    publishedPostsCount:published.items.length,
+    publishedPagesCount:pages.items.length,
+    postListTruncated:published.truncated,
+    pageListTruncated:pages.truncated,
+    postSitemapLocCount:sitemap?sitemap.locCount:null,
+    pageSitemapLocCount:pageSitemap?pageSitemap.locCount:null,
+    pages:pages.items.map(x=>({title:x.title||'',url:x.url||''})),
+    flaggedPostCount:problems.length,
+    flaggedPosts:problems.slice(0,40),
+    samplePublishedPosts:summaries.slice(0,15),
+    seoEndpoints:seo,
+    rightsReady:props_().getProperty('TMDB_RIGHTS_REVIEWED')==='yes'?'property set yes — independently verify evidence':'no — commercial TMDB publication blocked'
+  };
+  Logger.log('INEXTGROUP FULL SITE READINESS AUDIT — READ ONLY');
+  Logger.log(JSON.stringify(report,null,2));
+  Logger.log('No Blogger or TMDB content was created, edited, or published.');
+  return report;
+}
+function bloggerListAudit_(firstUrl,maxItems) {
+  const items=[];
+  let next=firstUrl;
+  let truncated=false;
+  for(let batch=0;batch<5&&next;batch++){
+    const result=UrlFetchApp.fetch(next,{
+      headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken(),Accept:'application/json'},
+      followRedirects:false,muteHttpExceptions:true
+    });
+    const status=result.getResponseCode();
+    if(status!==200)throw new Error('Blogger list audit HTTP '+status);
+    const payload=JSON.parse(result.getContentText());
+    const list=payload.items||[];
+    for(const item of list){
+      if(items.length>=maxItems){truncated=true;break;}
+      items.push({id:item.id,title:item.title,content:item.content,url:item.url,labels:item.labels||[]});
+    }
+    if(truncated)break;
+    if(payload.nextPageToken){
+      if(items.length>=maxItems){truncated=true;break;}
+      next=firstUrl+(firstUrl.indexOf('?')>=0?'&':'?')+'pageToken='+encodeURIComponent(payload.nextPageToken);
+    }else next=null;
+    if(batch===4&&next)truncated=true;
+  }
+  return {items:items,truncated:truncated};
+}
+function stripHtmlAudit_(html) {
+  return String(html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ')
+    .replace(/<[^>]+>/g,' ').replace(/&(?:nbsp|amp|lt|gt|quot|#\d+);/gi,' ')
+    .replace(/\s+/g,' ').trim();
+}
