@@ -840,3 +840,124 @@ function preparePersonProfileDrafts(){
   Logger.log(JSON.stringify(result,null,2));return result;
  }finally{lock.releaseLock();}
 }
+
+
+/**
+ * Rich professional Movie / TV view; uses actual detailed TMDB data, no fictional facts.
+ * Movie and cast navigation remain internal to published INEXTGROUP URLs only.
+ * Source attribution/official trailers may open trusted external sites.
+ */
+function professionalMediaHtml_(d,type,index) {
+ const tv=type==='tv',title=String(tv?d.name:d.title||''),date=String(tv?d.first_air_date:d.release_date||'');
+ if(!title||!Number.isSafeInteger(d.id))throw new Error('Invalid TMDB movie/series details.');
+ const e=esc_,item=index||{people:{},media:{}},year=/^\d{4}/.test(date)?date.slice(0,4):'';
+ const img=(path,size)=>path&&/^\/[a-z0-9/_-]+\.(?:jpg|png|webp)$/i.test(path)?'https://image.tmdb.org/t/p/'+size+path:'';
+ const poster=img(d.poster_path,'w500'),backdrop=img(d.backdrop_path,'w1280');
+ const text=(v)=>v==null||v===''?'':e(v);
+ const tile=(label,value)=>value?'<div class="inext-info-tile"><dt>'+e(label)+'</dt><dd>'+e(value)+'</dd></div>':'';
+ const money=n=>Number.isFinite(n)&&n>0?'$'+Math.round(n).toLocaleString('en-US'):'';
+ const rating=Number.isFinite(d.vote_average)&&d.vote_count>0?d.vote_average.toFixed(1)+'/10 · '+d.vote_count.toLocaleString('en-US')+' TMDB votes':'';
+ const credit=d.credits||{},crew=credit.crew||[],cast=(credit.cast||[]).slice(0,16);
+ const directors=crew.filter(p=>p.job==='Director').map(p=>p.name).filter(Boolean);
+ const writers=crew.filter(p=>/^(Screenplay|Writer|Story|Teleplay)$/.test(p.job||'')).map(p=>p.name).filter(Boolean);
+ const leads=tv?(d.created_by||[]).map(p=>p.name).filter(Boolean):directors;
+ const unique=a=>[...new Set(a)];
+ const videos=((d.videos&&d.videos.results)||[]).filter(v=>v.site==='YouTube'&&v.type==='Trailer'&&v.official===true&&/^[A-Za-z0-9_-]{11}$/.test(v.key||'')).slice(0,2);
+ const genres=(d.genres||[]).map(g=>g.name).filter(Boolean);
+ const countries=(d.production_countries||[]).map(p=>p.name).filter(Boolean);
+ const companies=(d.production_companies||[]).map(p=>p.name).filter(Boolean);
+ const keywords=((d.keywords&&(d.keywords.keywords||d.keywords.results))||[]).map(k=>k.name).filter(Boolean).slice(0,10);
+ const certs=((d.release_dates&&d.release_dates.results)||[]).filter(r=>r.iso_3166_1==='US');
+ const certification=certs.reduce((found,region)=>found||((region.release_dates||[]).map(x=>x.certification).find(Boolean)||''),'');
+ const language=d.original_language||'';
+ let html='<article class="inext-pro-media inext-media" data-inext-media-id="'+d.id+'" data-inext-media-type="'+type+'">';
+ html+='<div class="inext-pro-banner"'+(backdrop?' style="background-image:linear-gradient(90deg,rgba(7,13,23,.97) 0%,rgba(7,13,23,.65) 68%,rgba(7,13,23,.44)),url(&quot;'+e(backdrop)+'&quot;)"':'')+'><div class="inext-pro-hero">';
+ html+='<div class="inext-pro-cover">'+(poster?'<img src="'+e(poster)+'" alt="'+e(title)+' poster" width="360" height="540" loading="eager" fetchpriority="high"/>':'<div class="inext-pro-fallback">No poster available</div>')+'</div>';
+ html+='<div class="inext-pro-summary"><p class="inext-pro-kicker">'+(tv?'TV Series':'Movie')+(year?' · '+year:'')+'</p><h2 class="inext-media__title">'+e(title)+'</h2>';
+ if(d.tagline)html+='<p class="inext-pro-tagline">'+e(d.tagline)+'</p>';
+ html+='<div class="inext-pro-pills">'+(date?'<span>'+e(date)+'</span>':'')+(d.runtime?'<span>'+Math.round(d.runtime)+' min</span>':'')+(tv&&d.number_of_seasons!=null?'<span>'+d.number_of_seasons+' season(s)</span>':'')+(certification?'<span>'+e(certification)+'</span>':'')+'</div>';
+ if(rating)html+='<p class="inext-pro-rating">★ '+e(rating)+'</p>';
+ if(genres.length)html+='<p class="inext-pro-genres">'+genres.map(e).join(' · ')+'</p>';
+ if(leads.length)html+='<p><strong>'+(tv?'Created by':'Directed by')+':</strong> '+unique(leads).map(e).join(', ')+'</p>';
+ html+='</div></div></div>';
+ html+='<nav class="inext-pro-jump" aria-label="Movie details"><a href="#inext-overview">Overview</a><a href="#inext-cast">Cast</a><a href="#inext-facts">Facts</a><a href="#inext-media">Trailers</a><a href="#inext-related">Related</a></nav>';
+ if(d.overview)html+='<section class="inext-pro-section" id="inext-overview"><h3>Story Overview</h3><p>'+e(d.overview)+'</p></section>';
+ html+='<section class="inext-pro-section" id="inext-cast"><h3>Cast &amp; Characters</h3><div class="inext-pro-cast-grid">';
+ for(const p of cast){
+   if(!p.name)continue;
+   const internal=item.people[String(p.id)]||'',photo=img(p.profile_path,'w185');
+   html+='<div class="inext-pro-person" data-inext-person-id="'+e(p.id||'')+'">';
+   if(photo)html+='<img src="'+e(photo)+'" alt="'+e(p.name)+'" loading="lazy" width="92" height="138"/>';
+   else html+='<div class="inext-pro-avatar" aria-hidden="true">●</div>';
+   html+='<div>'+(internal?'<a href="'+e(internal)+'" class="inext-pro-person-name">'+e(p.name)+'</a>':'<strong class="inext-pro-person-name">'+e(p.name)+'</strong>')+
+    (p.character?'<small>as '+e(p.character)+'</small>':'')+'</div></div>';
+ }
+ html+='</div></section>';
+ const runtime=tv?'':d.runtime?Math.round(d.runtime)+' minutes':'';
+ html+='<section class="inext-pro-section" id="inext-facts"><h3>Movie &amp; Production Facts</h3><dl class="inext-pro-info-grid">';
+ html+=tile('Status',d.status)+tile('Original title',tv?d.original_name:d.original_title)+tile(tv?'First air date':'Release date',date)+tile('Runtime',runtime)+
+ tile('Original language',language.toUpperCase())+tile('Director',unique(directors).join(', '))+tile('Writer',unique(writers).join(', '))+
+ tile('Genres',genres.join(', '))+tile('Production countries',countries.join(', '))+
+ tile('Production companies',companies.join(', '))+tile('Budget',tv?'':money(d.budget))+
+ tile('Revenue',tv?'':money(d.revenue))+tile('US certification',certification)+
+ (tv?tile('Seasons',String(d.number_of_seasons==null?'':d.number_of_seasons))+tile('Episodes',String(d.number_of_episodes==null?'':d.number_of_episodes)):'');
+ html+='</dl></section>';
+ if(keywords.length)html+='<section class="inext-pro-section"><h3>Topics &amp; Keywords</h3><p>'+keywords.map(e).join(' · ')+'</p></section>';
+ html+='<section class="inext-pro-section" id="inext-media"><h3>Official Trailers</h3>';
+ if(videos.length)videos.forEach(v=>{html+='<p><a class="inext-pro-trailer" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer">▶ '+e(v.name||'Watch official trailer')+'</a></p>';});
+ else html+='<p>No verified official trailer was returned by the API for this record.</p>';
+ html+='</section>';
+ const currentKey=type+':'+d.id;
+ // Reuse the verified first-party related-post graph; never create fake links.
+ html+='<div id="inext-related">'+dbRelated_(currentKey,item)+'</div>';
+ html+='<p class="inext-media__source">Movie and television metadata: TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. <a href="https://www.themoviedb.org/'+type+'/'+d.id+'" target="_blank" rel="noopener noreferrer">Source record</a>.</p>';
+ html+='</article>';
+ return html;
+}
+/**
+ * Read-only preview and explicit one-post upgrade.
+ * Backup MUST succeed before modifying a previously published article.
+ */
+function previewDogStarsProfessionalUpgrade(){
+ const idx=dbIndex_(),target=idx.posts.find(p=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(p.url||''));
+ if(!target)throw new Error('The Dog Stars published URL is not in the current Blogger inventory.');
+ const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates');
+ const html=professionalMediaHtml_(detail,'movie',idx);
+ const result={postId:target.id,url:target.url,title:target.title,
+   oldHtmlCharacters:String(target.content||'').length,newHtmlCharacters:html.length,
+   castCount:(detail.credits&&detail.credits.cast||[]).length,
+   productionCompanies:(detail.production_companies||[]).length,
+   trailerCount:(detail.videos&&detail.videos.results||[]).filter(v=>v.official&&v.type==='Trailer').length,
+   warning:'Read-only. Applying will replace old body after backing it up; review your existing custom editorial text first.'};
+ Logger.log(JSON.stringify(result,null,2));return result;
+}
+function applyDogStarsProfessionalUpgrade(){
+ if(props_().getProperty('TMDB_RIGHTS_REVIEWED')!=='yes')throw new Error('TMDB rights flag must be yes.');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(5000))throw new Error('A movie edit is in progress.');
+ try{
+  const idx=dbIndex_(),p=idx.posts.find(x=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(x.url||''));
+  if(!p)throw new Error('Published The Dog Stars post was not found. Do not modify the wrong post.');
+  const old=String(p.content||'');
+  const key='INEXT_BACKUP_DOGSTARS_1384216';
+  const props=props_();
+  if(!props.getProperty(key)){
+    if(old.length>8000)throw new Error('Original body too large for safe Script Properties backup. Save a manual backup before editing.');
+    props.setProperty(key,old);
+    if(props.getProperty(key)!==old)throw new Error('Original post backup failed. No changes made.');
+  }
+  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates');
+  if(d.id!==1384216)throw new Error('Incorrect TMDB record returned.');
+  const replacement=professionalMediaHtml_(d,'movie',idx);
+  const url=idx.root+'/posts/'+encodeURIComponent(p.id);
+  const response=UrlFetchApp.fetch(url,{method:'put',contentType:'application/json',
+    headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},
+    payload:JSON.stringify({kind:'blogger#post',id:p.id,title:p.title,content:replacement,labels:p.labels||[]}),
+    muteHttpExceptions:true,followRedirects:false});
+  if(response.getResponseCode()!==200)throw new Error('Blogger update HTTP '+response.getResponseCode()+': '+response.getContentText().slice(0,200));
+  const updated=JSON.parse(response.getContentText());
+  const result={status:'updated',title:p.title,url:updated.url||p.url,backupProperty:key,
+    notice:'Old HTML backed up in Script Properties. Review live formatting, editorial text, and image rights.'};
+  Logger.log(JSON.stringify(result,null,2));return result;
+ }finally{lock.releaseLock();}
+}
