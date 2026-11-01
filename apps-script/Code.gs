@@ -580,7 +580,7 @@ function prepareLicensedTmdbDraftBatch() {
         result.push({type:type,id:m.id,status:'skipped_existing'});continue;
       }
       if(!genreMaps[type])genreMaps[type]=genres_(type);
-      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos,keywords,release_dates');
+      const detail=tmdb_(type+'/'+encodeURIComponent(m.id)+'?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
       const labels=[type==='movie'?'Movies':'TV Shows','TMDB']
         .concat((detail.genres||[]).map(g=>g.name).filter(Boolean).slice(0,4));
       const body=professionalMediaHtml_(detail,type,publishedIndex);
@@ -907,6 +907,7 @@ function professionalMediaHtml_(d,type,index) {
  if(videos.length)videos.forEach(v=>{html+='<p><a class="inext-pro-trailer" href="https://www.youtube.com/watch?v='+v.key+'" target="_blank" rel="noopener noreferrer">▶ '+e(v.name||'Watch official trailer')+'</a></p>';});
  else html+='<p>No verified official trailer was returned by the API for this record.</p>';
  html+='</section>';
+ html+=professionalSupplementHtml_(d,type,item);
  const currentKey=type+':'+d.id;
  // Reuse the verified first-party related-post graph; never create fake links.
  html+='<div id="inext-related">'+dbRelated_(currentKey,item)+'</div>';
@@ -921,7 +922,7 @@ function professionalMediaHtml_(d,type,index) {
 function previewDogStarsProfessionalUpgrade(){
  const idx=dbIndex_(),target=idx.posts.find(p=>/\/the-dog-stars-2026-movie-details\.html(?:[?#]|$)/.test(p.url||''));
  if(!target)throw new Error('The Dog Stars published URL is not in the current Blogger inventory.');
- const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates');
+ const detail=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
  const html=professionalMediaHtml_(detail,'movie',idx);
  const result={postId:target.id,url:target.url,title:target.title,
    oldHtmlCharacters:String(target.content||'').length,newHtmlCharacters:html.length,
@@ -946,7 +947,7 @@ function applyDogStarsProfessionalUpgrade(){
     props.setProperty(key,old);
     if(props.getProperty(key)!==old)throw new Error('Original post backup failed. No changes made.');
   }
-  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates');
+  const d=tmdb_('movie/1384216?append_to_response=credits,videos,keywords,release_dates,images,alternative_titles,recommendations,similar,reviews');
   if(d.id!==1384216)throw new Error('Incorrect TMDB record returned.');
   const replacement=professionalMediaHtml_(d,'movie',idx);
   const url=idx.root+'/posts/'+encodeURIComponent(p.id);
@@ -960,4 +961,95 @@ function applyDogStarsProfessionalUpgrade(){
     notice:'Old HTML backed up in Script Properties. Review live formatting, editorial text, and image rights.'};
   Logger.log(JSON.stringify(result,null,2));return result;
  }finally{lock.releaseLock();}
+}
+
+
+/**
+ * Supplemental TMDB detail modules: media, full crew, titles, regional release
+ * details, vetted reviews count and only REAL internal recommendations.
+ * This is source-attributed data, not original user reviews or fake votes.
+ */
+function professionalSupplementHtml_(d,type,index){
+ const e=esc_,img=(p,size)=>p&&/^\/[a-z0-9/_-]+\.(jpg|png|webp)$/i.test(p)?'https://image.tmdb.org/t/p/'+size+p:'';
+ const crew=(d.credits&&d.credits.crew)||[],selected=[];
+ const roles=['Director','Screenplay','Writer','Story','Producer','Executive Producer','Director of Photography','Original Music Composer','Editor'];
+ const seen={};
+ for(const role of roles){
+  for(const p of crew.filter(x=>x.job===role).slice(0,8)){
+   const key=role+':'+p.id;if(seen[key]||!p.name)continue;seen[key]=true;
+   selected.push({person:p,role:role});
+  }
+ }
+ let html='';
+ if(selected.length){
+  html+='<section class="inext-pro-section" id="inext-crew"><h3>Key Crew</h3><div class="inext-pro-crew-grid">';
+  selected.slice(0,24).forEach(x=>{
+   const inside=index.people[String(x.person.id)];
+   html+='<div class="inext-pro-crew-member">'+(inside?'<a href="'+e(inside)+'">'+e(x.person.name)+'</a>':'<strong>'+e(x.person.name)+'</strong>')+
+    '<small>'+e(x.role)+'</small></div>';
+  });
+  html+='</div></section>';
+ }
+ const titles=(d.alternative_titles&&d.alternative_titles.titles||[]);
+ if(titles.length){
+  const unique={},alternative=[];
+  for(const t of titles){
+   const name=String(t.title||'').trim();
+   if(!name||unique[name.toLowerCase()])continue;
+   unique[name.toLowerCase()]=true;
+   alternative.push({title:name,country:t.iso_3166_1||''});
+   if(alternative.length===8)break;
+  }
+  if(alternative.length){
+   html+='<section class="inext-pro-section" id="inext-alt-titles"><h3>Alternative Titles</h3><ul class="inext-pro-simple-list">';
+   for(const item of alternative)html+='<li>'+e(item.title)+(item.country?' <small>('+e(item.country)+')</small>':'')+'</li>';
+   html+='</ul></section>';
+  }
+ }
+ const dates=(d.release_dates&&d.release_dates.results||[]).filter(r=>['US','GB','BD'].includes(r.iso_3166_1||''));
+ if(dates.length){
+  html+='<section class="inext-pro-section" id="inext-release-dates"><h3>Regional Release Dates</h3><div class="inext-pro-release-list">';
+  for(const region of dates){
+   const entries=(region.release_dates||[]).filter(x=>x.release_date).slice(0,5);
+   for(const item of entries){
+    const iso=String(item.release_date||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))continue;
+    html+='<div><strong>'+e(region.iso_3166_1)+'</strong> <span>'+e(iso)+'</span>'+
+      (item.certification?'<span>'+e(item.certification)+'</span>':'')+'</div>';
+   }
+  }
+  html+='</div><p class="inext-pro-caption">Availability and release formats vary by region; confirm current listings with official distributors.</p></section>';
+ }
+ const photos=d.images||{},posters=(photos.posters||[]).slice(0,4),backdrops=(photos.backdrops||[]).slice(0,6);
+ const allImages=[...backdrops.map(x=>({file:x.file_path,size:'w780',kind:'Backdrop'})),
+  ...posters.map(x=>({file:x.file_path,size:'w342',kind:'Poster'}))].filter(x=>img(x.file,x.size));
+ if(allImages.length){
+  html+='<section class="inext-pro-section" id="inext-gallery"><h3>Media Gallery</h3><div class="inext-pro-gallery">';
+  for(const [i,item] of allImages.entries()){
+   const url=img(item.file,item.size);
+   html+='<figure><img src="'+e(url)+'" loading="lazy" decoding="async" alt="'+e((d.title||d.name||'Movie')+' '+item.kind+' '+(i+1))+
+    '" width="'+(item.kind==='Backdrop'?'400':'250')+'" height="'+(item.kind==='Backdrop'?'225':'375')+'"/><figcaption>'+item.kind+'</figcaption></figure>';
+  }
+  html+='</div></section>';
+ }
+ // Actual user review content is not reproduced. Show count only when supported.
+ if(d.reviews&&Number.isSafeInteger(d.reviews.total_results)&&d.reviews.total_results>0){
+  html+='<section class="inext-pro-section" id="inext-reviews"><h3>TMDB Community Reviews</h3>'+
+   '<p>TMDB currently reports '+d.reviews.total_results.toLocaleString('en-US')+
+   ' community review(s). INEXTGROUP does not present those as original INEXTGROUP reviews.</p></section>';
+ }
+ const suggested=(d.recommendations&&d.recommendations.results||[]).concat(d.similar&&d.similar.results||[]);
+ const shown={},links=[];
+ for(const m of suggested){
+  const key=type+':'+m.id,internal=index.media[key];
+  if(!internal||!internal.url||shown[key]||m.id===d.id)continue;
+  shown[key]=true;links.push({url:internal.url,title:internal.title||m.title||m.name||''});
+  if(links.length===8)break;
+ }
+ if(links.length){
+  html+='<section class="inext-pro-section" id="inext-recommendations"><h3>You May Also Like on INEXTGROUP</h3><ul class="inext-related-list">';
+  links.forEach(x=>{html+='<li><a href="'+e(x.url)+'">'+e(x.title)+'</a></li>';});
+  html+='</ul></section>';
+ }
+ return html;
 }
