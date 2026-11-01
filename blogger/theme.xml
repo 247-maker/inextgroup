@@ -227,6 +227,37 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
 .inext-verified{background:#102529;border:1px solid #2b5754;border-radius:15px;padding:22px;margin:14px 0}
 .inext-verified a{color:#7aead3;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:440px){body.item-view .blog-posts .post-body .inext-pro-gallery img{height:115px!important;max-height:115px!important}}
+
+/* Genuine interactive movie details: responsive scrollable accessible tabs. */
+.inext-tabs{display:flex;align-items:center;gap:5px;overflow-x:auto;scrollbar-width:thin;padding:5px;background:#131f2e;border:1px solid #344859;border-radius:14px;margin:15px 0 0;position:sticky;top:74px;z-index:4}
+.inext-tab{flex:0 0 auto;border:0;background:transparent;color:#bed0df;border-radius:10px;padding:12px 16px;font:700 14px/1.2 inherit;font-family:inherit;font-weight:700;cursor:pointer}
+.inext-tab:hover{background:#24374b;color:#fff}
+.inext-tab[aria-selected='true']{background:#155e57;color:#edfff9;box-shadow:inset 0 -2px 0 #66f0d3}
+.inext-tab:focus-visible,.inext-pro-gallery img:focus-visible{outline:3px solid #73ecd4;outline-offset:2px}
+.inext-tab-panels{background:#101b2a;border:1px solid #2e4253;border-radius:0 0 16px 16px;padding:6px 24px 25px;margin-top:-1px}
+.inext-tab-panel[hidden]{display:none!important}
+.inext-tab-panel>.inext-pro-section{border-bottom:1px solid #2b4050}
+.inext-tab-panel>.inext-pro-section:last-child{border-bottom:0}
+.inext-tab-panel>.inext-related{padding:16px 0}
+.inext-tab-panel>.inext-pro-section>h3{margin-top:5px}
+.inext-pro-gallery img{cursor:zoom-in}
+.inext-lightbox{border:1px solid #476078;border-radius:16px;background:#0b1522;color:#fff;padding:18px 18px 10px;max-width:min(1000px,95vw);max-height:92vh;box-shadow:0 18px 60px #0009}
+.inext-lightbox::backdrop{background:rgba(0,0,0,.85)}
+.inext-lightbox img{display:block;max-width:90vw;max-height:75vh;object-fit:contain;margin:auto;border-radius:8px}
+.inext-lightbox-close{position:absolute;top:4px;right:5px;background:#253648;color:#fff;border:0;font-size:28px;line-height:1;width:43px;height:43px;border-radius:12px;cursor:pointer}
+.inext-lightbox-caption{font-size:13px;color:#c5d7e7;margin:12px 0 0;text-align:center}
+.inext-seasons-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inext-season-card{background:#16283a;border:1px solid #334e60;border-radius:12px;overflow:hidden}
+.inext-season-card summary{display:flex;gap:13px;align-items:center;cursor:pointer;padding:12px;list-style:none}
+.inext-season-card summary::-webkit-details-marker{display:none}
+.inext-season-card summary img{width:70px!important;height:100px!important;object-fit:cover;border-radius:7px}
+.inext-season-card summary strong{display:block;font-size:15px;color:#fff}
+.inext-season-card summary small{display:block;font-size:12px;color:#bdcfde;margin-top:5px}
+.inext-season-expander{margin-left:auto;color:#77e8d3;font-size:24px}
+.inext-season-card[open] .inext-season-expander{transform:rotate(45deg)}
+.inext-season-fallback{display:grid;place-items:center;width:70px;height:100px;background:#263849;color:#a8c4d3;border-radius:7px}
+.inext-season-description{padding:0 14px 14px;color:#dae5ec;line-height:1.6;font-size:14px}
+@media(max-width:650px){.inext-tabs{top:0;border-radius:10px}.inext-tab{padding:11px 12px;font-size:13px}.inext-tab-panels{padding:0 14px 15px}.inext-seasons-grid{grid-template-columns:1fr}}
 ]]></b:skin>
 <!-- Blogger's post feed uses a 3-column grid; single posts must not inherit it. -->
 <b:if cond='data:view.isSingleItem'>
@@ -573,6 +604,154 @@ body.item-view .blog-posts .post-body .inext-person-profile>img{width:230px!impo
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initPersonPage);
  else initPersonPage();
+})();
+//]]>
+</script>
+</b:if>
+
+<b:if cond='data:view.isSingleItem'>
+<script type='text/javascript'>
+//<![CDATA[
+(function(){
+  'use strict';
+  function initInteractiveDetail(){
+    var root=document.querySelector('#main .post-body .inext-pro-media');
+    if(!root || root.getAttribute('data-inext-interactive')==='ready')return;
+    var jump=root.querySelector('.inext-pro-jump');
+    if(!jump)return;
+    var definitions=[
+      {id:'overview',title:'Overview',selectors:['#inext-overview','.inext-verified','#inext-facts','.inext-pro-section:has(> h3)']},
+      {id:'cast',title:'Cast & Crew',selectors:['#inext-cast','#inext-crew']},
+      {id:'media',title:'Media',selectors:['#inext-gallery','#inext-media']},
+      {id:'details',title:'Details',selectors:['#inext-release-dates','#inext-alt-titles','#inext-seasons']},
+      {id:'reviews',title:'Reviews',selectors:['#inext-reviews']},
+      {id:'related',title:'Related',selectors:['#inext-recommendations','#inext-related']}
+    ];
+    var grouped={},used=[];
+    definitions.forEach(function(d){grouped[d.id]=[];});
+    function add(group,node){
+      if(!node||used.indexOf(node)!==-1||node===jump)return;
+      used.push(node);grouped[group].push(node);
+    }
+    add('overview',root.querySelector('#inext-overview'));
+    add('overview',root.querySelector('.inext-verified'));
+    add('overview',root.querySelector('#inext-facts'));
+    Array.prototype.forEach.call(root.children,function(node){
+      if(node.classList && node.classList.contains('inext-pro-section') && node.querySelector('h3') &&
+          /Topics & Keywords/i.test(node.querySelector('h3').textContent||'')) add('overview',node);
+    });
+    add('cast',root.querySelector('#inext-cast'));
+    add('cast',root.querySelector('#inext-crew'));
+    add('media',root.querySelector('#inext-gallery'));
+    add('media',root.querySelector('#inext-media'));
+    add('details',root.querySelector('#inext-release-dates'));
+    add('details',root.querySelector('#inext-alt-titles'));
+    add('details',root.querySelector('#inext-seasons'));
+    add('reviews',root.querySelector('#inext-reviews'));
+    add('related',root.querySelector('#inext-recommendations'));
+    add('related',root.querySelector('#inext-related'));
+    // Absent review data should not leave a dead tab.
+    definitions=definitions.filter(function(d){return grouped[d.id].length>0;});
+    if(definitions.length<2)return;
+    var tabs=document.createElement('div');tabs.className='inext-tabs';
+    tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Movie or television page sections');
+    var container=document.createElement('div');container.className='inext-tab-panels';
+    var initialHash=(location.hash||'').slice(1);
+    var initial='overview';
+    definitions.forEach(function(d){
+      if(d.id===initialHash || grouped[d.id].some(function(node){
+        return node.id===initialHash || !!(initialHash && node.querySelector('#'+CSS.escape(initialHash)));
+      })) initial=d.id;
+    });
+    var buttons={},panels={};
+    function activate(id,focus,updateHash){
+      definitions.forEach(function(d){
+        var active=d.id===id;
+        buttons[d.id].setAttribute('aria-selected',String(active));
+        buttons[d.id].tabIndex=active?0:-1;
+        panels[d.id].hidden=!active;
+      });
+      if(focus)buttons[id].focus();
+      if(updateHash && history.replaceState)history.replaceState(null,'','#inext-'+id);
+    }
+    definitions.forEach(function(d,i){
+      var button=document.createElement('button');
+      button.type='button';button.className='inext-tab';
+      button.id='inext-tab-'+d.id;button.textContent=d.title;
+      button.setAttribute('role','tab');
+      button.setAttribute('aria-controls','inext-panel-'+d.id);
+      button.setAttribute('aria-selected','false');button.tabIndex=-1;
+      button.addEventListener('click',function(){activate(d.id,false,true);});
+      button.addEventListener('keydown',function(ev){
+        if(['ArrowRight','ArrowLeft','Home','End'].indexOf(ev.key)===-1)return;
+        ev.preventDefault();
+        var index=definitions.findIndex(function(x){return x.id===d.id;});
+        if(ev.key==='ArrowRight')index=(index+1)%definitions.length;
+        if(ev.key==='ArrowLeft')index=(index+definitions.length-1)%definitions.length;
+        if(ev.key==='Home')index=0;
+        if(ev.key==='End')index=definitions.length-1;
+        activate(definitions[index].id,true,true);
+      });
+      tabs.appendChild(button);buttons[d.id]=button;
+      var panel=document.createElement('section');panel.className='inext-tab-panel';
+      panel.id='inext-panel-'+d.id;panel.setAttribute('role','tabpanel');
+      panel.setAttribute('aria-labelledby',button.id);panel.tabIndex=0;
+      grouped[d.id].forEach(function(node){panel.appendChild(node);});
+      container.appendChild(panel);panels[d.id]=panel;
+    });
+    jump.parentNode.replaceChild(tabs,jump);
+    tabs.parentNode.insertBefore(container,tabs.nextSibling);
+    // Sections remain visible with scripting disabled: DOM enhancement only.
+    root.setAttribute('data-inext-interactive','ready');
+    activate(initial,false,false);
+    // When details link points to a section inside another tab, reveal its panel.
+    window.addEventListener('hashchange',function(){
+      var hash=(location.hash||'').replace(/^#/,'');
+      if(!hash)return;
+      definitions.forEach(function(d){
+        if(d.id===hash || grouped[d.id].some(function(node){
+          return node.id===hash || !!node.querySelector('[id="'+hash.replace(/"/g,'')+'"]');
+        }))activate(d.id,false,false);
+      });
+    });
+    // Local image gallery lightbox: no additional network request or embed.
+    var gallery=root.querySelector('.inext-pro-gallery');
+    if(gallery){
+      var modal=document.createElement('dialog');modal.className='inext-lightbox';
+      modal.setAttribute('aria-label','Movie media gallery');
+      var close=document.createElement('button');close.type='button';close.className='inext-lightbox-close';
+      close.setAttribute('aria-label','Close image gallery');close.textContent='×';
+      var big=document.createElement('img');big.alt='';
+      var caption=document.createElement('p');caption.className='inext-lightbox-caption';
+      modal.appendChild(close);modal.appendChild(big);modal.appendChild(caption);
+      document.body.appendChild(modal);
+      var pictures=Array.prototype.slice.call(gallery.querySelectorAll('figure img'));
+      var current=0;
+      function show(i){
+        current=(i+pictures.length)%pictures.length;
+        var photo=pictures[current];
+        big.src=photo.currentSrc||photo.src;
+        big.alt=photo.alt||'Media image';
+        caption.textContent=(current+1)+' / '+pictures.length+' — '+(photo.alt||'Movie image');
+      }
+      function shut(){if(modal.open)modal.close();}
+      close.addEventListener('click',shut);
+      modal.addEventListener('click',function(ev){if(ev.target===modal)shut();});
+      modal.addEventListener('keydown',function(ev){
+        if(ev.key==='ArrowRight'){ev.preventDefault();show(current+1);}
+        if(ev.key==='ArrowLeft'){ev.preventDefault();show(current-1);}
+      });
+      pictures.forEach(function(photo,i){
+        photo.tabIndex=0;photo.setAttribute('role','button');
+        photo.setAttribute('aria-label','Enlarge '+(photo.alt||'movie photo'));
+        function open(){show(i);if(typeof modal.showModal==='function')modal.showModal();}
+        photo.addEventListener('click',open);
+        photo.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();open();}});
+      });
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initInteractiveDetail);
+  else initInteractiveDetail();
 })();
 //]]>
 </script>
